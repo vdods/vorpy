@@ -132,7 +132,7 @@ def D (F, *X_v):
         compiled_function = differential(compiled_function, X)
     return compiled_function
 
-def python_expression_for (F, X, replacement_d={}, argument_id='X'):
+def python_expression_for (F, X, *, replacement_d={}, argument_id='X'):
     """
     Return a Python expression for the sybolic m-tensor function F, with respect to the n-tensor variable X.
     Both F and X can be of type numpy.ndarray.  The length of np.shape(F) is m, whereas the length of np.shape(X)
@@ -157,7 +157,7 @@ def python_expression_for (F, X, replacement_d={}, argument_id='X'):
 
     return __one_pass_replacement(expression_string, replacement_d)
 
-def python_procedure_for (F, X, replacement_d={}, argument_id='X', tab_string='    '):
+def python_procedure_for (F, X, *, replacement_d={}, argument_id='X', tab_string='    '):
     """
     Return a Python procedure for constructing the sybolic m-tensor function F, with respect to the n-tensor variable X.
     Both F and X can be of type numpy.ndarray.  The length of np.shape(F) is m, whereas the length of np.shape(X)
@@ -189,7 +189,7 @@ def python_procedure_for (F, X, replacement_d={}, argument_id='X', tab_string=' 
 
     return __one_pass_replacement(procedure_string, replacement_d)
 
-def python_lambda_expression_for (F, X, replacement_d={}):
+def python_lambda_expression_for (F, X, *, replacement_d={}):
     """
     Return source code for a Python implementation of the sybolic m-tensor function F, with respect to the n-tensor
     variable X.  Both F and X can be of type numpy.ndarray.  The length of np.shape(F) is m, whereas the length of
@@ -197,7 +197,7 @@ def python_lambda_expression_for (F, X, replacement_d={}):
     """
     return 'lambda X:'+python_expression_for(F, X, replacement_d=replacement_d, argument_id='X')
 
-def python_source_code_for (function_id, F, X, replacement_d={}, argument_id='X', import_v=[], decorator_v=[]):
+def python_source_code_for (function_id, F, X, *, replacement_d={}, argument_id='X', import_v=[], decorator_v=[]):
     """
     Returns a string containing a free-standing module which defines the given function.  The function_id
     parameter defines the name of the function in the source code.  The import_v and decorator_v parameters
@@ -219,7 +219,7 @@ def python_source_code_for (function_id, F, X, replacement_d={}, argument_id='X'
     retval += '\n'
     return retval
 
-def lambdified (F, X, replacement_d={}):
+def lambdified (F, X, *, replacement_d={}, verbose=False):
     """
     Return a Python function version of the sybolic m-tensor function F, with respect to the n-tensor variable X.
     Both F and X can be of type numpy.ndarray.  The length of np.shape(F) is m, whereas the length of np.shape(X) is n.
@@ -237,10 +237,12 @@ def lambdified (F, X, replacement_d={}):
     """
 
     function_source_code = python_lambda_expression_for(F, X, replacement_d=replacement_d)
+    if verbose:
+        print(function_source_code)
     compiled_function = eval(function_source_code)
     return compiled_function
 
-def cached_lambdified (function_id, function_creator=None, cache_dirname='lambdified_cache', verbose=False):
+def cached_lambdified (function_id, *, function_creator, cache_dirname='lambdified_cache', verbose=False):
     """
     This function has the same purpose as lambdified, except that it attempts to import the function from
     a previously cached source file instead of compiling it fresh each time.  If this attempt fails, it
