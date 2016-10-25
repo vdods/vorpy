@@ -6,8 +6,12 @@ Vorpy is short for "VictOR dods' PYthon package".  Plus if you Google "vorpy", y
 
 # Contents
 
--   `symbolic` : A module which eases use of `sympy`, facilitating the use of vector/tensor calculus (via `numpy.ndarray`s of symbols),  and which allows compilation of symbolic functions into Python code, caching the generated code if desired.  That process is known as 'lambdification' in `sympy`.  Take a look at the `cached_lambdified` function within this source.
--   Other stuff to be listed later; `symbolic.py` is the gem of this package.
+| Module | Description |
+| ------ | ----------- |
+| [vorpy](https://github.com/vdods/vorpy/tree/master/vorpy) | The root module for the vorpy package. |
+| [vorpy.symbolic](https://github.com/vdods/vorpy/blob/master/vorpy/symbolic.py) | Symbolic calculus module.  This module eases use of `sympy`, facilitating the use of vector/tensor calculus (via `numpy.ndarray`s of symbols),  and which allows compilation of symbolic functions into Python code, caching the generated code if desired.  That process is known as 'lambdification' in `sympy`.  Take a look at the `cached_lambdified` function within this source |
+
+Other stuff to be listed later; `vorpy.symbolic` is the gem of this package.
 
 # How to Install
 
