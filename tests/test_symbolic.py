@@ -1,12 +1,9 @@
-from .context import vorpy # This sets up the path correctly
-
 import itertools
 import numpy as np
 import os
 import shutil
 import sympy
 import time
-import unittest
 import vorpy.symbolic
 
 def benchmark_stuff (y_, f_, phi_, A_):
@@ -37,7 +34,7 @@ def benchmark_stuff (y_, f_, phi_, A_):
         if norm_v_ < 1.0e-10:
             continue
         max_abs_error = np.max(np.abs(phi_(v_) - np.array([v_[i] / norm_v_ for i in range(3)])))
-        assert max_abs_error == 0.0, 'v_ = {0}, max_abs_error = {1}'.format(v_, max_abs_error)
+        assert max_abs_error < 1.0e-14, 'v_ = {0}, max_abs_error = {1}'.format(v_, max_abs_error)
     phi_benchmark = tick()
 
     tick()
@@ -49,7 +46,7 @@ def benchmark_stuff (y_, f_, phi_, A_):
 
     return y_benchmark,f_benchmark,phi_benchmark,A_benchmark
 
-def unit_test_lambdified ():
+def test_lambdified ():
     tick_time = time.time()
     def tick ():
         nonlocal tick_time
@@ -58,7 +55,7 @@ def unit_test_lambdified ():
         tick_time = current_time
         return retval
 
-    print('unit_test_lambdified()')
+    print('test_lambdified()')
 
     x = vorpy.symbolic.variable('x')
     y = x**sympy.Rational(1,7)
@@ -90,7 +87,7 @@ def unit_test_lambdified ():
 
     print('unit test passed.')
 
-def unit_test_lambdified_cached ():
+def test_lambdified_cached ():
     tick_time = time.time()
     def tick ():
         nonlocal tick_time
@@ -193,17 +190,17 @@ def unit_test_lambdified_cached ():
             print('unit test with all cached lambdas took {0} seconds.'.format(time.time() - start_time))
             print('')
 
-    print('unit_test_lambdified_cached()')
+    print('test_lambdified_cached()')
     print('')
 
-    cache_dirname = 'unit_test_lambdified_cached'
+    cache_dirname = 'test_lambdified_cached'
     run_uncached_and_cached(cache_dirname=cache_dirname, use_numba=False, cached_run_iteration_count=3)
     if os.path.exists(cache_dirname):
         print('deleting cache dir "{0}".'.format(cache_dirname))
         shutil.rmtree(cache_dirname)
     print('')
 
-    cache_dirname = 'unit_test_lambdified_cached_numba'
+    cache_dirname = 'test_lambdified_cached_numba'
     run_uncached_and_cached(cache_dirname=cache_dirname, use_numba=True, cached_run_iteration_count=3)
     if os.path.exists(cache_dirname):
         print('deleting cache dir "{0}".'.format(cache_dirname))
@@ -211,6 +208,3 @@ def unit_test_lambdified_cached ():
     print('')
 
     print('unit test passed.')
-
-if __name__ == '__main__':
-    unittest.main()

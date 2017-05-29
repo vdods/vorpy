@@ -16,5 +16,7 @@ setuptools.setup(
     author_email='victor.dods@gmail.com',
     url='https://github.com/vdods/vorpy',
     license=license,
-    packages=setuptools.find_packages(exclude=('future', 'tests'))
+    packages=setuptools.find_packages(exclude=('future', 'tests')),
+    tests_require=('nose'),
+    test_suite='nose.collector'
 )
