@@ -11,6 +11,7 @@ Vorpy is short for "VictOR dods' PYthon package".  Plus if you Google "vorpy", y
 | [vorpy](https://github.com/vdods/vorpy/tree/master/vorpy) | The root module for the vorpy package. |
 | [vorpy.apply_along_axes](https://github.com/vdods/vorpy/blob/master/vorpy/apply_along_axes.py) | Multi-dimensional generalization of `numpy.apply_along_axis`. |
 | [vorpy.symbolic](https://github.com/vdods/vorpy/blob/master/vorpy/symbolic.py) | Symbolic calculus module.  This module eases use of `sympy`, facilitating the use of vector/tensor calculus (via `numpy.ndarray`s of symbols),  and which allows compilation of symbolic functions into Python code, caching the generated code if desired.  That process is known as 'lambdification' in `sympy`.  Take a look at the `cached_lambdified` function within this source. |
+| [vorpy.symplectic_integration](https://github.com/vdods/vorpy/blob/master/vorpy/symplectic_integration/) | Module implementing symplectic integrators; only currently available type is a family of split-Hamiltonian integrators. |
 
 # How to Install
 
@@ -40,6 +41,7 @@ The suite of unit tests can be run via the command:
 | ------- | ----- |
 | 0.0.0 | Initial release.  Added `vorpy.symbolic`. |
 | 0.1.0 | Added `vorpy.apply_along_axes`. |
+| 0.2.0 | Added `vorpy.symplectic_integration`. |
 
 # References
 
