@@ -137,10 +137,10 @@ def compare_integrator_methods (N):
         return PendulumNd.X_H(qp, *args).reshape(-1)    # -1 will cause reshape to produce a 1-tensor.
 
     results.add_result('standard odeint', t_v, scipy.integrate.odeint(X_H_adapted_for_odeint, qp_0.reshape(-1), t_v).reshape(len(t_v),2,-1))
-    results.add_result('symplectic Euler', t_v, vorpy.symplectic_integration.split_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, coefficients=vorpy.symplectic_integration.split_hamiltonian.predefined_method_coefficients.euler))
-    results.add_result('symplectic Verlet', t_v, vorpy.symplectic_integration.split_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, coefficients=vorpy.symplectic_integration.split_hamiltonian.predefined_method_coefficients.verlet))
-    results.add_result('symplectic Ruth3', t_v, vorpy.symplectic_integration.split_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, coefficients=vorpy.symplectic_integration.split_hamiltonian.predefined_method_coefficients.ruth3))
-    results.add_result('symplectic Ruth4', t_v, vorpy.symplectic_integration.split_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, coefficients=vorpy.symplectic_integration.split_hamiltonian.predefined_method_coefficients.ruth4))
+    results.add_result('symplectic Euler', t_v, vorpy.symplectic_integration.separable_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, update_step_coefficients=vorpy.symplectic_integration.separable_hamiltonian.update_step_coefficients.euler1))
+    results.add_result('symplectic Verlet', t_v, vorpy.symplectic_integration.separable_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, update_step_coefficients=vorpy.symplectic_integration.separable_hamiltonian.update_step_coefficients.verlet2))
+    results.add_result('symplectic Ruth3', t_v, vorpy.symplectic_integration.separable_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, update_step_coefficients=vorpy.symplectic_integration.separable_hamiltonian.update_step_coefficients.ruth3))
+    results.add_result('symplectic Ruth4', t_v, vorpy.symplectic_integration.separable_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, update_step_coefficients=vorpy.symplectic_integration.separable_hamiltonian.update_step_coefficients.ruth4))
 
     filename = 'symplectic_integration.Pendulum{0}d.png'.format(N)
     results.plot(filename)
@@ -157,10 +157,10 @@ def compare_parallel_initial_conditions (N, shape_of_parallelism):
 
     results = Results()
 
-    results.add_result('symplectic Euler', t_v, vorpy.symplectic_integration.split_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, coefficients=vorpy.symplectic_integration.split_hamiltonian.predefined_method_coefficients.euler))
-    results.add_result('symplectic Verlet', t_v, vorpy.symplectic_integration.split_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, coefficients=vorpy.symplectic_integration.split_hamiltonian.predefined_method_coefficients.verlet))
-    results.add_result('symplectic Ruth3', t_v, vorpy.symplectic_integration.split_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, coefficients=vorpy.symplectic_integration.split_hamiltonian.predefined_method_coefficients.ruth3))
-    results.add_result('symplectic Ruth4', t_v, vorpy.symplectic_integration.split_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, coefficients=vorpy.symplectic_integration.split_hamiltonian.predefined_method_coefficients.ruth4))
+    results.add_result('symplectic Euler', t_v, vorpy.symplectic_integration.separable_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, update_step_coefficients=vorpy.symplectic_integration.separable_hamiltonian.update_step_coefficients.euler1))
+    results.add_result('symplectic Verlet', t_v, vorpy.symplectic_integration.separable_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, update_step_coefficients=vorpy.symplectic_integration.separable_hamiltonian.update_step_coefficients.verlet2))
+    results.add_result('symplectic Ruth3', t_v, vorpy.symplectic_integration.separable_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, update_step_coefficients=vorpy.symplectic_integration.separable_hamiltonian.update_step_coefficients.ruth3))
+    results.add_result('symplectic Ruth4', t_v, vorpy.symplectic_integration.separable_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, update_step_coefficients=vorpy.symplectic_integration.separable_hamiltonian.update_step_coefficients.ruth4))
 
     filename = 'symplectic_integration_parallel.Pendulum{0}d.shape:{1}.png'.format(N, shape_of_parallelism)
     results.plot(filename)

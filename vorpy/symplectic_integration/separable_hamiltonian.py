@@ -1,26 +1,20 @@
-import collections
-import numpy as np
-from .. import apply_along_axes
-
 """
-Implements a family of split Hamiltonian symplectic integrators.  A symplectic integrator is one which preserves
-the symplectic form on the cotangent bundle of phase space.  Coordinates on phase space are typically written
-as (q,p), which denote the position and momentum coordinates respectively.  A symplectic integrator will
-then integrate Hamilton's equations
-
-    dq/dt =   \partial H / \partial p
-    dp/dt = - \partial H / \partial q
-
-where H(q,p) is the Hamiltonian (aka total energy) of the system.  A Hamiltonian is a scalar function H(q,p)
-defining the total energy for the system.  A split Hamiltonian has the form
+Implements a family of separable Hamiltonian symplectic integrators, where the family is parameterized by the
+coefficients which define the weights for each update step.  A separable Hamiltonian has the form
 
     H(q,p) = K(p) + V(q)
 
-where K and V are prototypically the kinetic and potential energy functions, respectively.
+where K and V are prototypically the kinetic and potential energy functions, respectively.  In this case,
+Hamilton's equations are
 
-For convenience, this module provides the predefined_method_coefficients variable which supplies values to
-be used for the coefficients parameter to the integrate function.  The coefficients parameter defines the order
-of the integrator as well as other particular properties.
+    dq/dt =   \partial K / \partial p
+    dp/dt = - \partial V / \partial q
+
+and a leapfrog technique is used to implement the integration using the provided update step coefficients.
+
+For convenience, this module provides several predefined values in the module-level update_step_coefficients
+variable which may be used to specify the update_step_coefficients parameter of the integrate function.  This
+parameter defines the order of the integrator as well as other particular properties.
 
 References
 
@@ -28,7 +22,11 @@ References
     https://en.wikipedia.org/wiki/Energy_drift
 """
 
-def __make_ruth4_method_coefficients ():
+import collections
+import numpy as np
+from .. import apply_along_axes
+
+def __make_ruth4_update_step_coefficients ():
     cbrt_2 = 2.0**(1.0/3.0)
     b = 2.0 - cbrt_2
     c_0 = c_3 = 0.5/b
@@ -41,14 +39,14 @@ def __make_ruth4_method_coefficients ():
         [d_0, d_1, d_2, d_3]
     ])
 
-PredefinedMethodCoefficientsType = collections.namedtuple('PredefinedMethodCoefficientsType', ['euler', 'verlet', 'ruth3', 'ruth4'])
-predefined_method_coefficients = PredefinedMethodCoefficientsType(
-    # euler
+UpdateStepCoefficients = collections.namedtuple('UpdateStepCoefficients', ['euler1', 'verlet2', 'ruth3', 'ruth4'])
+update_step_coefficients = UpdateStepCoefficients(
+    # euler1
     np.array([
         [1.0],
         [1.0]
     ]),
-    # verlet
+    # verlet2
     np.array([
         [0.0, 1.0],
         [0.5, 0.5]
@@ -59,13 +57,13 @@ predefined_method_coefficients = PredefinedMethodCoefficientsType(
         [-1.0/24.0, 0.75, 7.0/24.0]
     ]),
     # ruth4
-    __make_ruth4_method_coefficients()
+    __make_ruth4_update_step_coefficients()
 )
 
-def integrate (*, initial_coordinates, t_v, dK_dp, dV_dq, coefficients):
+def integrate (*, initial_coordinates, t_v, dK_dp, dV_dq, update_step_coefficients):
     """
-    This function computes multiple timesteps of the symplectic integrator defined by the method
-    parameter
+    This function computes multiple timesteps of the separable Hamiltonian symplectic integrator defined by the
+    update_step_coefficients parameter.
 
     Let N denote the dimension of the configuration space (i.e. the number of components of the q coordinate).
 
@@ -91,19 +89,22 @@ def integrate (*, initial_coordinates, t_v, dK_dp, dV_dq, coefficients):
 
         and should each accept and return a vector having N components.
 
-    -   coefficients should be a numpy.ndarray with shape (2,K), where K is the order of the integrator.
+    -   update_step_coefficients should be a numpy.ndarray with shape (2,K), where K is the order of the integrator.
         These coefficients define the specific integrator by defining the weight of each leapfrog update
         step.  Row 0 and row 1 correspond to the update step weight for even and odd leapfrog update steps
-        respectively.  Predefined coefficients are available via the predefined_method_coefficients variable.
-        In particular,
+        respectively.  Predefined coefficients are available via the update_step_coefficients variable found in
+        this module.  In particular,
 
-            predefined_method_coefficients.euler  : 1st order
-            predefined_method_coefficients.verlet : 2nd order
-            predefined_method_coefficients.ruth3  : 3rd order
-            predefined_method_coefficients.ruth4  : 4rd order
+            update_step_coefficients.euler1  : 1st order
+            update_step_coefficients.verlet2 : 2nd order
+            update_step_coefficients.ruth3   : 3rd order
+            update_step_coefficients.ruth4   : 4rd order
 
-        The coefficients' rows must sum to one (i.e. numpy.sum(coefficients[i]) == 1.0 for i in [0,1]), and are
-        described at https://en.wikipedia.org/wiki/Symplectic_integrator
+        The rows of update_step_coefficients must sum to one, i.e.
+
+            all(numpy.sum(update_step_coefficients[i]) == 1.0 for i in [0,1])
+
+        and are described at https://en.wikipedia.org/wiki/Symplectic_integrator
 
     Return values:
 
@@ -112,13 +113,13 @@ def integrate (*, initial_coordinates, t_v, dK_dp, dV_dq, coefficients):
     """
 
     initial_coordinates_shape = np.shape(initial_coordinates)
-    coefficients_shape = np.shape(coefficients)
+    update_step_coefficients_shape = np.shape(update_step_coefficients)
 
     assert len(initial_coordinates_shape) >= 2
     assert initial_coordinates_shape[-2] == 2
     assert len(t_v) >= 1
-    assert coefficients_shape[0] == 2, 'coefficients must have shape (2,K), where K is the order of the integrator.'
-    assert np.allclose(np.sum(coefficients, axis=1), 1.0), 'rows of coefficients matrix must sum to 1.0 (within numerical tolerance)'
+    assert update_step_coefficients_shape[0] == 2, 'update_step_coefficients must have shape (2,K), where K is the order of the integrator.'
+    assert np.allclose(np.sum(update_step_coefficients, axis=1), 1.0), 'rows of update_step_coefficients must sum to 1.0 (within numerical tolerance)'
 
     # N is the dimension of the underlying configuration space.  Thus 2*N is the dimension of the phase space,
     # hence a coordinate of the phase space having shape (2,N).
@@ -129,7 +130,7 @@ def integrate (*, initial_coordinates, t_v, dK_dp, dV_dq, coefficients):
     # T is the number of timesteps
     T = len(t_v)
     # order is the order of the integrator (number of coefficients in each row).
-    order = coefficients_shape[1]
+    order = update_step_coefficients_shape[1]
 
     # Create the return value
     integrated_coordinates = np.ndarray((T,)+non_coordinate_shape+(2,N), dtype=initial_coordinates.dtype)
@@ -143,7 +144,7 @@ def integrate (*, initial_coordinates, t_v, dK_dp, dV_dq, coefficients):
     for step_index,timestep in enumerate(np.diff(t_v)):
         integrated_coordinates[step_index,...] = current_coordinates
         # Iterate over (c,d) pairs and perform the leapfrog update steps.
-        for c,d in zip(coefficients[0],coefficients[1]):
+        for c,d in zip(update_step_coefficients[0],update_step_coefficients[1]):
             # The (2,N) phase space is indexed by the last two indices, i.e. (-2,-1) in that order.
             q += timestep*c*apply_along_axes(dK_dp, (-1,), p, output_axis_v=(-1,), func_output_shape=(N,))
             p -= timestep*d*apply_along_axes(dV_dq, (-1,), q, output_axis_v=(-1,), func_output_shape=(N,))
