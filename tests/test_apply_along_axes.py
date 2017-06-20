@@ -5,10 +5,17 @@ import vorpy
 def test__apply_along_axes__compare_with__apply_along_axis ():
     rng = np.random.RandomState(42)
     a = rng.randn(4,5,6,7)
-    assert np.all(vorpy.apply_along_axes(np.sum, [0], a) == np.apply_along_axis(np.sum, 0, a))
-    assert np.all(vorpy.apply_along_axes(np.sum, [1], a) == np.apply_along_axis(np.sum, 1, a))
-    assert np.all(vorpy.apply_along_axes(np.sum, [2], a) == np.apply_along_axis(np.sum, 2, a))
-    assert np.all(vorpy.apply_along_axes(np.sum, [3], a) == np.apply_along_axis(np.sum, 3, a))
+
+    assert np.all(vorpy.apply_along_axes(np.sum, [0], [a]) == np.apply_along_axis(np.sum, 0, a))
+    assert np.all(vorpy.apply_along_axes(np.sum, [1], [a]) == np.apply_along_axis(np.sum, 1, a))
+    assert np.all(vorpy.apply_along_axes(np.sum, [2], [a]) == np.apply_along_axis(np.sum, 2, a))
+    assert np.all(vorpy.apply_along_axes(np.sum, [3], [a]) == np.apply_along_axis(np.sum, 3, a))
+
+    assert np.all(vorpy.apply_along_axes(np.sum, (0,), (a,)) == np.apply_along_axis(np.sum, 0, a))
+    assert np.all(vorpy.apply_along_axes(np.sum, (1,), (a,)) == np.apply_along_axis(np.sum, 1, a))
+    assert np.all(vorpy.apply_along_axes(np.sum, (2,), (a,)) == np.apply_along_axis(np.sum, 2, a))
+    assert np.all(vorpy.apply_along_axes(np.sum, (3,), (a,)) == np.apply_along_axis(np.sum, 3, a))
+
     print('test__apply_along_axes__compare_with__apply_along_axis passed.')
 
 def test__apply_along_axes ():
@@ -37,7 +44,7 @@ def test__apply_along_axes ():
 
                     output_axis_v = (output_i0,output_i1)
                     # Compute the result.  The multi-slice across the output axes should be a symmetric matrix.
-                    result = vorpy.apply_along_axes(symmetric_square, (input_i0,input_i1), a, output_axis_v=output_axis_v)
+                    result = vorpy.apply_along_axes(symmetric_square, (input_i0,input_i1), (a,), output_axis_v=output_axis_v)
                     # Figure out which indices correspond to the input axes; call these result_non_output_axis_v.
                     all_indices = tuple(range(N))
                     normalized_output_axis_v = tuple(output_axis if output_axis >= 0 else output_axis+N for output_axis in output_axis_v)
