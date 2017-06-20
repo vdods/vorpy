@@ -129,8 +129,6 @@ def integrate (*, initial_coordinates, t_v, dK_dp, dV_dq, update_step_coefficien
     non_coordinate_axis_v = tuple(range(len(non_coordinate_shape)))
     # T is the number of timesteps
     T = len(t_v)
-    # order is the order of the integrator (number of coefficients in each row).
-    order = update_step_coefficients_shape[1]
 
     # Create the return value
     integrated_coordinates = np.ndarray((T,)+non_coordinate_shape+(2,N), dtype=initial_coordinates.dtype)
@@ -146,8 +144,8 @@ def integrate (*, initial_coordinates, t_v, dK_dp, dV_dq, update_step_coefficien
         # Iterate over (c,d) pairs and perform the leapfrog update steps.
         for c,d in zip(update_step_coefficients[0],update_step_coefficients[1]):
             # The (2,N) phase space is indexed by the last two indices, i.e. (-2,-1) in that order.
-            q += timestep*c*apply_along_axes(dK_dp, (-1,), p, output_axis_v=(-1,), func_output_shape=(N,))
-            p -= timestep*d*apply_along_axes(dV_dq, (-1,), q, output_axis_v=(-1,), func_output_shape=(N,))
+            q += timestep*c*apply_along_axes(dK_dp, (-1,), (p,), output_axis_v=(-1,), func_output_shape=(N,))
+            p -= timestep*d*apply_along_axes(dV_dq, (-1,), (q,), output_axis_v=(-1,), func_output_shape=(N,))
 
     integrated_coordinates[T-1,...] = current_coordinates
 
