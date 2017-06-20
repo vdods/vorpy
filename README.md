@@ -11,7 +11,7 @@ Vorpy is short for "VictOR dods' PYthon package".  Plus if you Google "vorpy", y
 | [vorpy](https://github.com/vdods/vorpy/tree/master/vorpy) | The root module for the vorpy package. |
 | [vorpy.apply_along_axes](https://github.com/vdods/vorpy/blob/master/vorpy/apply_along_axes.py) | Multi-dimensional generalization of `numpy.apply_along_axis`. |
 | [vorpy.symbolic](https://github.com/vdods/vorpy/blob/master/vorpy/symbolic.py) | Symbolic calculus module.  This module eases use of `sympy`, facilitating the use of vector/tensor calculus (via `numpy.ndarray`s of symbols),  and which allows compilation of symbolic functions into Python code, caching the generated code if desired.  That process is known as 'lambdification' in `sympy`.  Take a look at the `cached_lambdified` function within this source. |
-| [vorpy.symplectic_integration](https://github.com/vdods/vorpy/blob/master/vorpy/symplectic_integration/) | Module implementing symplectic integrators; only currently available type is a family of separable Hamiltonian integrators. |
+| [vorpy.symplectic_integration](https://github.com/vdods/vorpy/blob/master/vorpy/symplectic_integration/) | Module implementing symplectic integrators; available is a family of separable Hamiltonian integrators and a nonseparable Hamiltonian integrator. |
 
 # How to Install
 
@@ -41,12 +41,21 @@ The suite of unit tests can be run via the command:
 | ------- | ----- |
 | 0.0.0 | Initial release.  Added `vorpy.symbolic`. |
 | 0.1.0 | Added `vorpy.apply_along_axes`. |
-| 0.2.0 | Added `vorpy.symplectic_integration`. |
+| 0.2.0 | Added `vorpy.symplectic_integration.separable_hamiltonian`. |
+| 0.3.0 | Added `vorpy.symplectic_integration.nonseparable_hamiltonian`. |
+
+# To-Do List
+
+-   Make the symbolic module aware of vectorized operations so that fast numpy-implemented ndarray functions
+    can be used instead of structure-forgetting symbolic expressions that are fully written out.
+-   Verify that `vorpy.apply_along_axes` is automatically parallelized.
+-   Require numpy.ndarray or tuple be the type of the input array(s) for apply_along_axes, so that extra parens
+    to form a trivial tuple are not necessary in the basic case where there is a single input array.
+-   In apply_along_axes, allow the base case where input_array_v[0].shape = () and input_axis_v = [].
 
 # References
 
 -   [http://docs.python-guide.org/en/latest/writing/structure/]
-
-# To-Do List
-
--   Verify that `vorpy.apply_along_axes` is automatically parallelized.
+-   [https://en.wikipedia.org/wiki/Symplectic_integrator]
+-   [https://en.wikipedia.org/wiki/Energy_drift]
+-   [https://journals.aps.org/pre/abstract/10.1103/PhysRevE.94.043303] - Molei Tao - Explicit symplectic approximation of nonseparable Hamiltonians: Algorithm and long time performance

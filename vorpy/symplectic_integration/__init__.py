@@ -22,4 +22,5 @@ References
     https://journals.aps.org/pre/abstract/10.1103/PhysRevE.94.043303 - Molei Tao - Explicit symplectic approximation of nonseparable Hamiltonians: Algorithm and long time performance
 """
 
+from . import nonseparable_hamiltonian
 from . import separable_hamiltonian
