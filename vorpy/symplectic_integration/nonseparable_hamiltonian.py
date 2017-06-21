@@ -12,7 +12,20 @@ References
 import numpy as np
 from .. import apply_along_axes
 
-def integrate (*, initial_coordinates, t_v, dH_dq, dH_dp):
+def heuristic_estimate_for_omega (*, delta, order, c=10.0):
+    """
+    Uses a heuristic to give an estimate for the binding coefficient omega in the nonseparable
+    Hamiltonian integrator.  The rule from the Tao paper is that the timestep `delta` must be much
+    smaller than `omega**(-1/order)`.  If we define `x is much smaller than y` to be `c*x <= y` for
+    a large positive constant c, then the condition is equivalent to
+
+        omega <= (c*delta)**(-order),
+
+    and we will use that bound as the heuristic assignment.
+    """
+    return (c*delta)**(-order)
+
+def integrate (*, initial_coordinates, t_v, dH_dq, dH_dp, order, omega):
     """
     This function computes multiple timesteps of the nonseparable Hamiltonian symplectic integrator.
 
@@ -40,6 +53,11 @@ def integrate (*, initial_coordinates, t_v, dH_dq, dH_dp):
 
         and should each accept a pair of (N,)-shaped numpy.ndarray and return an (N,)-shaped numpy.ndarray.
 
+    -   order specifies the order of the integrator; must be a positive, even integer.
+
+    -   omega is the coupling constant between the two copies of phase space and must be a positive value.
+        See heuristic_estimate_for_omega for computing omega using a heuristic suggested by the Tao paper.
+
     Return values:
 
     -   integrated_coordinates is a numpy.ndarray having shape (len(t_v),A_1,A_2,...,A_M,2,N), containing the coordinates of
@@ -51,6 +69,8 @@ def integrate (*, initial_coordinates, t_v, dH_dq, dH_dp):
     assert len(initial_coordinates_shape) >= 2
     assert initial_coordinates_shape[-2] == 2
     assert len(t_v) >= 1
+    assert order > 0, 'order (which is {0}) must be a positive, even integer'.format(order)
+    assert order%2 == 0, 'order (which is {0}) must be a positive, even integer'.format(order)
 
     # N is the dimension of the underlying configuration space.  Thus 2*N is the dimension of the phase space,
     # hence a coordinate of the phase space having shape (2,N).
@@ -78,9 +98,6 @@ def integrate (*, initial_coordinates, t_v, dH_dq, dH_dp):
 
     # Set the values of qp and xy to initial_coordinates.
     qp[...] = xy[...] = initial_coordinates
-
-    # TODO: Make omega a real parameter, perhaps depending on delta T
-    omega = 100.0 # This is an arbitrary guess
 
     def phi_H_a_update (delta):
         nonlocal q
@@ -116,18 +133,32 @@ def integrate (*, initial_coordinates, t_v, dH_dq, dH_dp):
         x[...]      = 0.5*(q_plus_x - c*q_minus_x - s*p_minus_y)
         y[...]      = 0.5*(p_plus_y + s*q_minus_x - c*p_minus_y)
 
+    def update (timestep, order):
+        # Base case for inductively defined update step (induction parameter is order)
+        if order == 2:
+            phi_H_a_update(0.5*timestep)
+            phi_H_b_update(0.5*timestep)
+            phi_omega_H_c_update(timestep)
+            phi_H_b_update(0.5*timestep)
+            phi_H_a_update(0.5*timestep)
+        # Recursive case for inductively defined update step (induction parameter is order)
+        else:
+            # gamma is gamma_{\ell} in the Tao paper.  Would it be faster to use a list of these gammas
+            # instead of computing them each time?  Because of the recursive definition, they are computed
+            # an exponential number of times.
+            gamma = 1.0 / (2.0 - 2.0**(1.0/(order+1)))
+            lower_order = order-2
+            update(gamma*timestep, lower_order)
+            update((1.0-2.0*gamma)*timestep, lower_order)
+            update(gamma*timestep, lower_order)
+
     for step_index,timestep in enumerate(np.diff(t_v)):
-        # Only store the (q,p) half of extended phase space.
-        print('integrated_coordinates[step_index,...].shape = {0}; qp.shape = {1}'.format(integrated_coordinates[step_index,...].shape, qp.shape))
+        # Only store the (q,p) half of extended phase space in integrated_coordinates.
         integrated_coordinates[step_index,...] = qp
         # Perform update steps
-        phi_H_a_update(0.5*timestep)
-        phi_H_b_update(0.5*timestep)
-        phi_omega_H_c_update(timestep)
-        phi_H_b_update(0.5*timestep)
-        phi_H_a_update(0.5*timestep)
+        update(timestep, order)
 
-    # Only store the (q,p) half of extended phase space.
+    # Record one last time.  Only store the (q,p) half of extended phase space in integrated_coordinates.
     integrated_coordinates[T-1,...] = qp
 
     return integrated_coordinates

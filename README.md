@@ -46,12 +46,18 @@ The suite of unit tests can be run via the command:
 
 # To-Do List
 
--   Make the symbolic module aware of vectorized operations so that fast numpy-implemented ndarray functions
-    can be used instead of structure-forgetting symbolic expressions that are fully written out.
+-   Make the `symbolic` module aware of vectorized operations so that fast `numpy`-implemented `ndarray` functions
+    can be used instead of structure-forgetting symbolic expressions that are fully written out.  For example,
+    the 1st and 2nd total derivatives of a quadratic form are simply matrix expressions which have simple `numpy`
+    expressions.
 -   Verify that `vorpy.apply_along_axes` is automatically parallelized.
--   Require numpy.ndarray or tuple be the type of the input array(s) for apply_along_axes, so that extra parens
+-   Require `numpy.ndarray` or `tuple` be the type of the input array(s) for `apply_along_axes`, so that extra parens
     to form a trivial tuple are not necessary in the basic case where there is a single input array.
--   In apply_along_axes, allow the base case where input_array_v[0].shape = () and input_axis_v = [].
+-   In `apply_along_axes`, allow the base case where `input_array_v[0].shape == ()` and `input_axis_v == []`.
+-   Increasing the order of Tao's nonseparable Hamiltonian integrator doesn't actually do what it should, even when
+    using very small timesteps (expected behavior is that the error is orders smaller, but what actually happens is
+    that it's of the same order as say order=2).  Examine why this is happening (perhaps published version of Tao
+    paper is updated with correction).
 
 # References
 
