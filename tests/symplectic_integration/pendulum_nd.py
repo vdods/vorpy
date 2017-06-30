@@ -12,18 +12,21 @@ class PendulumNd:
 
     @staticmethod
     def K (p):
+        """Kinetic energy is a function of the momentum only.  It is assumed that the pendulum has unit mass."""
         return 0.5*np.sum(np.square(p))
 
     @staticmethod
     def V (q):
+        """Potential energy is a function of the position only."""
         # np.linalg.norm(q) gives the angle from the vertical axis
-        return np.cos(np.linalg.norm(q))
+        return -np.cos(np.linalg.norm(q))
 
     @staticmethod
     def H (coordinates):
+        """The Hamiltonian is the sum of kinetic and potential energy."""
         q = coordinates[0,:]
         p = coordinates[1,:]
-        return PendulumNd.K(p) - PendulumNd.V(q)
+        return PendulumNd.K(p) + PendulumNd.V(q)
 
     @staticmethod
     def dK_dp (p):
@@ -32,7 +35,7 @@ class PendulumNd:
     @staticmethod
     def dV_dq (q):
         # sinc(x) is sin(pi*x)/(pi*x) when x is not 0 -- this is used to avoid the singularity in sin(x)/x.
-        return np.sinc(np.linalg.norm(q)/np.pi) * q
+        return -np.sinc(np.linalg.norm(q)/np.pi) * q
 
     @staticmethod
     def dH_dq (q, p):
