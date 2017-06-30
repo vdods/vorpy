@@ -17,11 +17,11 @@ Vorpy is short for "VictOR dods' PYthon package".  Plus if you Google "vorpy", y
 
 Vorpy can be installed directly from this github.com repository using the following command:
 
-    pip install git+https://github.com/vdods/vorpy.git
+    pip install --upgrade git+https://github.com/vdods/vorpy.git
 
 Installation can also be made from a local copy of the vorpy package repo:
 
-    pip install path/to/vorpy
+    pip install --upgrade path/to/vorpy
 
 where path/to/vorpy is the root directory of the project; the path containing setup.py (as well as this README.md file).  Apropos: see `pip install --editable <path/url>`
 
@@ -43,6 +43,7 @@ The suite of unit tests can be run via the command:
 | 0.1.0 | Added `vorpy.apply_along_axes`. |
 | 0.2.0 | Added `vorpy.symplectic_integration.separable_hamiltonian`. |
 | 0.3.0 | Added `vorpy.symplectic_integration.nonseparable_hamiltonian`. |
+| 0.3.1 | Added a means to salvage results from symplectic integration if an exception is raised during integration. |
 
 # To-Do List
 
@@ -58,6 +59,10 @@ The suite of unit tests can be run via the command:
     using very small timesteps (expected behavior is that the error is orders smaller, but what actually happens is
     that it's of the same order as say order=2).  Examine why this is happening (perhaps published version of Tao
     paper is updated with correction).
+-   Create a [symplectic] integrator using the [Jacobi-Maupertuis principle](https://en.wikipedia.org/wiki/Maupertuis%27_principle).
+-   Move PendulumNd and KeplerNd from tests dir into vorpy and write tests to symbolically verify all the formulas
+    are correct.  The goal would be to create more of these to provide a whole family of dynamical systems that can
+    be used and experimented with.
 
 # References
 

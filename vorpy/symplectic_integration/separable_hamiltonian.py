@@ -25,6 +25,7 @@ References
 import collections
 import numpy as np
 from .. import apply_along_axes
+from . import exceptions
 
 def __make_ruth4_update_step_coefficients ():
     cbrt_2 = 2.0**(1.0/3.0)
@@ -139,14 +140,25 @@ def integrate (*, initial_coordinates, t_v, dK_dp, dV_dq, update_step_coefficien
     q = current_coordinates[...,0,:]
     p = current_coordinates[...,1,:]
 
-    for step_index,timestep in enumerate(np.diff(t_v)):
-        integrated_coordinates[step_index,...] = current_coordinates
-        # Iterate over (c,d) pairs and perform the leapfrog update steps.
-        for c,d in zip(update_step_coefficients[0],update_step_coefficients[1]):
-            # The (2,N) phase space is indexed by the last two indices, i.e. (-2,-1) in that order.
-            q += timestep*c*apply_along_axes(dK_dp, (-1,), (p,), output_axis_v=(-1,), func_output_shape=(N,))
-            p -= timestep*d*apply_along_axes(dV_dq, (-1,), (q,), output_axis_v=(-1,), func_output_shape=(N,))
+    # Store the initial coordinates (which current_coordinates is currently equal to).
+    integrated_coordinates[0,...] = current_coordinates
 
-    integrated_coordinates[T-1,...] = current_coordinates
+    for step_index,timestep in enumerate(np.diff(t_v)):
+        try:
+            # Iterate over (c,d) pairs and perform the leapfrog update steps.
+            for c,d in zip(update_step_coefficients[0],update_step_coefficients[1]):
+                # The (2,N) phase space is indexed by the last two indices, i.e. (-2,-1) in that order.
+                q += timestep*c*apply_along_axes(dK_dp, (-1,), (p,), output_axis_v=(-1,), func_output_shape=(N,))
+                p -= timestep*d*apply_along_axes(dV_dq, (-1,), (q,), output_axis_v=(-1,), func_output_shape=(N,))
+            # Store the results.
+            integrated_coordinates[step_index+1,...] = current_coordinates
+        except Exception as e:
+            # If a non-system-exiting or user-defined exception was encountered, then salvage the part
+            # of the curve that was computed without error.
+            raise exceptions.SalvagedResultException(
+                original_exception=e,
+                salvaged_t_v=np.copy(t_v[:step_index+1]),
+                salvaged_qp_v=np.copy(integrated_coordinates[:step_index+1,...])
+            ) from e
 
     return integrated_coordinates

@@ -11,6 +11,7 @@ References
 
 import numpy as np
 from .. import apply_along_axes
+from . import exceptions
 
 def heuristic_estimate_for_omega (*, delta, order, c=10.0):
     """
@@ -83,6 +84,7 @@ def integrate (*, initial_coordinates, t_v, dH_dq, dH_dp, order, omega):
 
     # Create the return value
     integrated_coordinates = np.ndarray((T,)+non_coordinate_shape+(2,N), dtype=initial_coordinates.dtype)
+    integrated_coordinates.fill(np.nan)
     # Create a buffer for intermediate coordinates; this will represent an element of "extended phase space"
     # (see Tao's paper).  The added `2` axis after (2,N) is to index the coordinate pairs (q,p) (index 0)
     # and (x,y) (index 1).
@@ -127,7 +129,7 @@ def integrate (*, initial_coordinates, t_v, dH_dq, dH_dp, order, omega):
         q_minus_x   = q - x
         p_plus_y    = p + y
         p_minus_y   = p - y
-        # The ellipses are necessary in order to assign into the existing slices.
+        # The ellipsises are necessary in order to assign into the existing slices.
         q[...]      = 0.5*(q_plus_x + c*q_minus_x + s*p_minus_y)
         p[...]      = 0.5*(p_plus_y - s*q_minus_x + c*p_minus_y)
         x[...]      = 0.5*(q_plus_x - c*q_minus_x - s*p_minus_y)
@@ -152,13 +154,22 @@ def integrate (*, initial_coordinates, t_v, dH_dq, dH_dp, order, omega):
             update((1.0-2.0*gamma)*timestep, lower_order)
             update(gamma*timestep, lower_order)
 
-    for step_index,timestep in enumerate(np.diff(t_v)):
-        # Only store the (q,p) half of extended phase space in integrated_coordinates.
-        integrated_coordinates[step_index,...] = qp
-        # Perform update steps
-        update(timestep, order)
+    # Only store the (q,p) half of extended phase space in integrated_coordinates.
+    integrated_coordinates[0,...] = qp
 
-    # Record one last time.  Only store the (q,p) half of extended phase space in integrated_coordinates.
-    integrated_coordinates[T-1,...] = qp
+    for step_index,timestep in enumerate(np.diff(t_v)):
+        try:
+            # Perform update steps
+            update(timestep, order)
+            # Only store the (q,p) half of extended phase space in integrated_coordinates.
+            integrated_coordinates[step_index+1,...] = qp
+        except Exception as e:
+            # If a non-system-exiting or user-defined exception was encountered, then salvage the part
+            # of the curve that was computed without error.
+            raise exceptions.SalvagedResultException(
+                original_exception=e,
+                salvaged_t_v=np.copy(t_v[:step_index+1]),
+                salvaged_qp_v=np.copy(integrated_coordinates[:step_index+1,...])
+            ) from e
 
     return integrated_coordinates

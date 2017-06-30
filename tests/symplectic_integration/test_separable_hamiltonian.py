@@ -1,6 +1,7 @@
 import itertools
 import numpy as np
 from .hamiltons_equations import deviation_form
+from .kepler_nd import KeplerNd
 from .pendulum_nd import PendulumNd
 from .results import Results
 import scipy.integrate
@@ -119,11 +120,52 @@ def compare_parallel_initial_conditions (N, shape_of_parallelism):
     filename = 'symplectic_integration_parallel.Pendulum{0}d.shape:{1}.png'.format(N, shape_of_parallelism)
     results.plot(filename, detrend_Hamiltonian=True)
 
-def test__compare_integrator_methods ():
-    for N in [1,2,3]:
-        compare_integrator_methods(N)
+#def test__compare_integrator_methods ():
+    #for N in [1,2,3]:
+        #compare_integrator_methods(N)
 
-def test__compare_parallel_initial_conditions ():
-    for N,shape_of_parallelism in itertools.product([1,2], [(),(2,),(2,3)]):
-        compare_parallel_initial_conditions(N, shape_of_parallelism)
+#def test__compare_parallel_initial_conditions ():
+    #for N,shape_of_parallelism in itertools.product([1,2], [(),(2,),(2,3)]):
+        #compare_parallel_initial_conditions(N, shape_of_parallelism)
 
+def test__salvaged_result ():
+    import sys
+
+    def dV_dq_complaining (q):
+        # Introduce arbitrary error in order to test SalvagedResultException functionality.
+        assert np.sum(np.square(q)) > 1.0e-2
+        return KeplerNd.dV_dq(q)
+
+    dt = 0.01
+    t_v = np.arange(0.0, 60.0, dt)
+    # R^3 Kepler problem
+    qp_0 = np.array([
+        [1.0, 0.0, 0.0],
+        [0.0, 0.01, 0.0]
+    ])
+    order = 2
+    omega = np.pi/(4*dt)
+    assert np.allclose(2*omega*dt, np.pi/2)
+    try:
+        results = Results()
+        qp_v = vorpy.symplectic_integration.separable_hamiltonian.integrate(
+            initial_coordinates=qp_0,
+            t_v=t_v,
+            dK_dp=KeplerNd.dK_dp,
+            dV_dq=dV_dq_complaining,
+            update_step_coefficients=vorpy.symplectic_integration.separable_hamiltonian.update_step_coefficients.ruth4
+        )
+        assert False, 'did not catch SalvagedResultException as expected'
+    except vorpy.symplectic_integration.exceptions.SalvagedResultException as e:
+        print('caught SalvagedResultException as expected: {0}'.format(e))
+        qp_v = e.salvaged_qp_v
+        t_v = e.salvaged_t_v
+        assert qp_v.shape[0] == t_v.shape[0]
+        H_v = vorpy.apply_along_axes(KeplerNd.H, (-2,-1), (qp_v,), output_axis_v=(), func_output_shape=())
+        deviation_form_v = deviation_form(t_v=t_v, qp_v=qp_v, dH_dq=KeplerNd.dH_dq, dH_dp=KeplerNd.dH_dp)
+        norm_deviation_form_v = vorpy.apply_along_axes(np.linalg.norm, (-2,-1), (deviation_form_v,), output_axis_v=(), func_output_shape=())
+        norm_error_v = np.full(norm_deviation_form_v.shape, np.nan)
+        results.add_result('Kepler trajectory', dt, t_v, qp_v, H_v, norm_deviation_form_v, norm_error_v)
+        # As you can see in this plot, the energy is not nearly conserved as time goes on, and the norm of the deviation form
+        # diverges away from zero as time goes on.
+        results.plot(filename='symplectic_integration.separable_hamiltonian.salvaged_result.png')

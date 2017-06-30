@@ -2,3 +2,4 @@ __pycache__
 *.pyc
 *.kate-swp
 vorpy.egg-info
+*.png

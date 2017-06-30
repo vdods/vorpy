@@ -24,3 +24,4 @@ References
 
 from . import nonseparable_hamiltonian
 from . import separable_hamiltonian
+from . import exceptions

@@ -1,6 +1,7 @@
 import itertools
 import numpy as np
 from .hamiltons_equations import deviation_form
+from .kepler_nd import KeplerNd
 from .pendulum_nd import PendulumNd
 from .results import Results
 import scipy.integrate
@@ -65,14 +66,57 @@ def compare_with_separable_hamiltonian_integrate (N, dt, t_v, order, omega, refe
     filename = 'symplectic_integration_comparison.Pendulum{0}d.order:{1}.dt:{2:.2e}.omega:{3:.2e}.png'.format(N, order, dt, omega)
     results.plot(filename)
 
-def test__compare_with_separable_hamiltonian_integrate ():
-    for N in [1,2,3]:
-        for dt in [0.002, 0.02, 0.2]:
-            t_v = np.arange(0.0, 60.0, dt)
-            # The reference solution is computed via vorpy.symplectic_integration.separable_hamiltonian.integrate
-            # using a very small timestep, in order to be considered as good as the "true" solution.
-            reference_dt = dt/10.0
-            reference_t_v,reference_qp_v = compute_reference_integral_curve(N, reference_dt)
-            for order in [2,4,6,8]:
-                omega = vorpy.symplectic_integration.nonseparable_hamiltonian.heuristic_estimate_for_omega(delta=dt, order=order)
-                compare_with_separable_hamiltonian_integrate(N, dt, t_v, order, omega, reference_dt, reference_t_v, reference_qp_v)
+#def test__compare_with_separable_hamiltonian_integrate ():
+    #for N in [1,2,3]:
+        #for dt in [0.002, 0.02, 0.2]:
+            #t_v = np.arange(0.0, 60.0, dt)
+            ## The reference solution is computed via vorpy.symplectic_integration.separable_hamiltonian.integrate
+            ## using a very small timestep, in order to be considered as good as the "true" solution.
+            #reference_dt = dt/10.0
+            #reference_t_v,reference_qp_v = compute_reference_integral_curve(N, reference_dt)
+            #for order in [2,4,6,8]:
+                #omega = vorpy.symplectic_integration.nonseparable_hamiltonian.heuristic_estimate_for_omega(delta=dt, order=order)
+                #compare_with_separable_hamiltonian_integrate(N, dt, t_v, order, omega, reference_dt, reference_t_v, reference_qp_v)
+
+def test__salvaged_result ():
+    import sys
+
+    def dH_dq_complaining (q, p):
+        # Introduce arbitrary error in order to test SalvagedResultException functionality.
+        assert np.sum(np.square(q)) > 1.0e-2
+        return KeplerNd.dH_dq(q, p)
+
+    dt = 0.01
+    t_v = np.arange(0.0, 60.0, dt)
+    # R^3 Kepler problem
+    qp_0 = np.array([
+        [1.0, 0.0, 0.0],
+        [0.0, 0.01, 0.0]
+    ])
+    order = 2
+    omega = np.pi/(4*dt)
+    assert np.allclose(2*omega*dt, np.pi/2)
+    try:
+        results = Results()
+        qp_v = vorpy.symplectic_integration.nonseparable_hamiltonian.integrate(
+            initial_coordinates=qp_0,
+            t_v=t_v,
+            dH_dq=dH_dq_complaining,
+            dH_dp=KeplerNd.dH_dp,
+            order=order,
+            omega=omega
+        )
+        assert False, 'did not catch SalvagedResultException as expected'
+    except vorpy.symplectic_integration.exceptions.SalvagedResultException as e:
+        print('caught SalvagedResultException as expected: {0}'.format(e))
+        qp_v = e.salvaged_qp_v
+        t_v = e.salvaged_t_v
+        assert qp_v.shape[0] == t_v.shape[0]
+        H_v = vorpy.apply_along_axes(KeplerNd.H, (-2,-1), (qp_v,), output_axis_v=(), func_output_shape=())
+        deviation_form_v = deviation_form(t_v=t_v, qp_v=qp_v, dH_dq=KeplerNd.dH_dq, dH_dp=KeplerNd.dH_dp)
+        norm_deviation_form_v = vorpy.apply_along_axes(np.linalg.norm, (-2,-1), (deviation_form_v,), output_axis_v=(), func_output_shape=())
+        norm_error_v = np.full(norm_deviation_form_v.shape, np.nan)
+        results.add_result('Kepler trajectory', dt, t_v, qp_v, H_v, norm_deviation_form_v, norm_error_v)
+        # As you can see in this plot, the energy is not nearly conserved as time goes on, and the norm of the deviation form
+        # diverges away from zero as time goes on.
+        results.plot(filename='symplectic_integration.separable_hamiltonian.salvaged_result.png')
