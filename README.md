@@ -44,6 +44,7 @@ The suite of unit tests can be run via the command:
 | 0.2.0 | Added `vorpy.symplectic_integration.separable_hamiltonian`. |
 | 0.3.0 | Added `vorpy.symplectic_integration.nonseparable_hamiltonian`. |
 | 0.3.1 | Added a means to salvage results from symplectic integration if an exception is raised during integration. |
+| 0.4.0 | Added `vorpy.pickle`. |
 
 # To-Do List
 
@@ -60,9 +61,13 @@ The suite of unit tests can be run via the command:
     that it's of the same order as say order=2).  Examine why this is happening (perhaps published version of Tao
     paper is updated with correction).
 -   Create a [symplectic] integrator using the [Jacobi-Maupertuis principle](https://en.wikipedia.org/wiki/Maupertuis%27_principle).
--   Move PendulumNd and KeplerNd from tests dir into vorpy and write tests to symbolically verify all the formulas
+-   Move `PendulumNd` and `KeplerNd` from tests dir into vorpy and write tests to symbolically verify all the formulas
     are correct.  The goal would be to create more of these to provide a whole family of dynamical systems that can
     be used and experimented with.
+-   Have tests create a `test-artifacts` subdir which all files that the tests produce are put in, so there's an
+    easy single thing to delete after tests run (or tests can clean this up themselves).
+-   Switch to [pytest](https://docs.pytest.org/en/latest/).
+-   For `sys.stderr.write`-based warnings, create a flag that can be set within the `vorpy` module to silence them.
 
 # References
 
