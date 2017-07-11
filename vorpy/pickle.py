@@ -25,14 +25,8 @@ Example:
     )
 """
 
+import dill
 import os
-
-try:
-    import cPickle as pypickle
-except Exception as e:
-    import sys
-    sys.stderr.write('WARNING: vorpy.pickle: `import cPickle` failed with error "{0}"; falling back to slower `pickle` module.\n'.format(e))
-    import pickle as pypickle
 
 def __log (out, message):
     if out is not None:
@@ -56,7 +50,7 @@ def pickle (*, data, pickle_filename, transform_before_pickle=None, log_out=None
         log('attempting to pickle data.\n')
         if transform_before_pickle is not None:
             data = transform_before_pickle(data)
-        pypickle.dump(data, f)
+        dill.dump(data, f)
         log('successfully pickled data.\n')
     return data
 
@@ -75,7 +69,7 @@ def unpickle (*, pickle_filename, transform_after_unpickle=None, log_out=None):
     with open(pickle_filename, 'rb') as f:
         log('successfully opened "{0}" for reading.\n'.format(pickle_filename))
         log('attempting to unpickle data.\n')
-        data = pypickle.load(f)
+        data = dill.load(f)
         if transform_after_unpickle is not None:
             data = transform_after_unpickle(data)
         log('successfully unpickled.\n')
@@ -109,7 +103,6 @@ def try_to_pickle (*, data, pickle_filename, transform_before_pickle=None, log_o
     except (IOError, FileNotFoundError) as e:
         log('failed to open "{0}" for writing; error was "{1}".\n'.format(pickle_filename, e))
         return False
-    #except pypickle.PickleError as e:
     except Exception as e:
         log('opened "{0}" for writing, but failed to pickle data; error was "{1}".\n'.format(pickle_filename, e))
         if os.path.exists(pickle_filename):
@@ -143,7 +136,6 @@ def __unpickle_or_compute (*, pickle_filename, computation, transform_after_unpi
         return unpickle(pickle_filename=pickle_filename, transform_after_unpickle=transform_after_unpickle, log_out=log_out)
     except (IOError, FileNotFoundError) as e:
         log('failed to open "{0}" for reading; error was "{1}".\n'.format(pickle_filename, e))
-    #except pypickle.PickleError as e:
     except Exception as e:
         log('opened "{0}" for reading, but failed load pickle; error was "{1}".\n'.format(pickle_filename))
     return __compute(computation=computation, log_out=log_out)
@@ -167,7 +159,6 @@ def unpickle_or_compute_and_try_to_pickle (*, pickle_filename, computation, tran
         return unpickle(pickle_filename=pickle_filename, transform_after_unpickle=transform_after_unpickle, log_out=log_out)
     except (IOError, FileNotFoundError) as e:
         log('failed to open "{0}" for reading; error was "{1}".\n'.format(pickle_filename, e))
-    #except pypickle.PickleError as e:
     except Exception as e:
         log('opened "{0}" for reading, but failed load pickle; error was "{1}".\n'.format(pickle_filename))
     return __compute_and_try_to_pickle(pickle_filename=pickle_filename, computation=computation, transform_before_pickle=transform_before_pickle, log_out=log_out)

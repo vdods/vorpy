@@ -45,6 +45,7 @@ The suite of unit tests can be run via the command:
 | 0.3.0 | Added `vorpy.symplectic_integration.nonseparable_hamiltonian`. |
 | 0.3.1 | Added a means to salvage results from symplectic integration if an exception is raised during integration. |
 | 0.4.0 | Added `vorpy.pickle`. |
+| 0.4.1 | Changed `vorpy.pickle` to use the `dill` module (which can pickle lambda expressions) instead of the builtin `pickle` module. |
 
 # To-Do List
 
@@ -68,6 +69,22 @@ The suite of unit tests can be run via the command:
     easy single thing to delete after tests run (or tests can clean this up themselves).
 -   Switch to [pytest](https://docs.pytest.org/en/latest/).
 -   For `sys.stderr.write`-based warnings, create a flag that can be set within the `vorpy` module to silence them.
+-   Use `hashlib` for data caching layer on top of `vorpy.pickle`.
+-   Should probably use [dill](https://pypi.python.org/pypi/dill) instead of `pickle`.  See
+    [https://stackoverflow.com/questions/16377215/how-to-pickle-a-namedtuple-instance-correctly].
+-   Make a human-readable hash, which concatenates words to represent elements of a hash space.  This should be
+    convertable to/from a binary string.  Examples:
+
+        StupidlyWalkingPerson
+        BigThing
+        Tree
+
+    Maybe also tack on the remaining bits to the end as a decimal or hex number.  Examples:
+
+        StupidlyWalkingPersonA07BE5
+        Tree10034
+
+    See [https://stackoverflow.com/questions/17753182/getting-a-large-list-of-nouns-or-adjectives-in-python-with-nltk-or-python-mad]
 
 # References
 

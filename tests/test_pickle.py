@@ -53,6 +53,19 @@ def test__try_to_pickle ():
     assert pickle_succeeded
     assert os.path.exists(pickle_filename)
 
+def test__try_to_pickle__lambda ():
+    pickle_filename = 'test__try_to_pickle__lambda.pickle'
+    delete_file_if_exists(pickle_filename)
+
+    L = lambda x:x**2
+    pickle_succeeded = vorpy.pickle.try_to_pickle(data=L, pickle_filename=pickle_filename, log_out=sys.stdout)
+    assert pickle_succeeded
+    assert os.path.exists(pickle_filename)
+
+    # Now attempt to unpickle and then pickle it.
+    unpickled_L = vorpy.pickle.unpickle(pickle_filename=pickle_filename, log_out=sys.stdout)
+    assert all(L(x) == unpickled_L(x) for x in range(100))
+
 def test__try_to_pickle__failure_IOError ():
     # This should produce an error because this is a directory.
     path_to_produce_IOError = 'test__try_to_pickle__failure_IOError.nonexistent_filename/'
@@ -65,8 +78,8 @@ def test__try_to_pickle__failure_PickleError ():
     pickle_filename = 'test__try_to_pickle.pickle'
     delete_file_if_exists(pickle_filename)
 
-    # Can't pickle a lambda function.
-    data = lambda x:x**2
+    # Can't pickle a generator.
+    data = (x**2 for x in range(100))
     pickle_succeeded = vorpy.pickle.try_to_pickle(data=data, pickle_filename=pickle_filename, log_out=sys.stdout)
     assert not pickle_succeeded
     assert not os.path.exists(pickle_filename)
