@@ -11,6 +11,8 @@ import numpy as np
 import os
 import re
 import sympy
+import sys
+import traceback
 
 def __is_python_identifier (s):
     # Check that the dirname is a valid module name.
@@ -302,10 +304,13 @@ def cached_lambdified (function_id, *, function_creator, cache_dirname='lambdifi
             function_module = importlib.import_module(cache_dirname + '.' + function_id)
             if verbose:
                 print('symbolic.cached_lambdified(): successfully loaded module "{0}".'.format(function_module_name))
-        except:
+        except Exception as e:
             # TODO: handle specific exceptions
             if verbose:
-                print('symbolic.cached_lambdified(): error encountered while attempting to cache and load module.')
+                print('symbolic.cached_lambdified(): error encountered while attempting to cache and load module.  exception {0} was: {1}'.format(type(e), e))
+                # Print out the exception traceback (i.e. stack)
+                ex_type,ex,tb = sys.exc_info()
+                traceback.print_tb(tb)
                 print('symbolic.cached_lambdified(): deleting incomplete source file "{0}".'.format(cached_function_implementation_filename))
             os.remove(cached_function_implementation_filename)
             raise
