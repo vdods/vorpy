@@ -62,6 +62,9 @@ The suite of unit tests can be run via the command:
     that it's of the same order as say order=2).  Examine why this is happening (perhaps published version of Tao
     paper is updated with correction).
 -   Create a [symplectic] integrator using the [Jacobi-Maupertuis principle](https://en.wikipedia.org/wiki/Maupertuis%27_principle).
+-   Specify an upper bound for integrator on H error, which abs(H - H(qp(0))).  When computing the next step, if the
+    H error is above the upper bound, recompute that step with a lower dt.  This will involve defining a search
+    strategy for dt that doesn't make it too small.
 -   Move `PendulumNd` and `KeplerNd` from tests dir into vorpy and write tests to symbolically verify all the formulas
     are correct.  The goal would be to create more of these to provide a whole family of dynamical systems that can
     be used and experimented with.
@@ -85,6 +88,8 @@ The suite of unit tests can be run via the command:
         Tree10034
 
     See [https://stackoverflow.com/questions/17753182/getting-a-large-list-of-nouns-or-adjectives-in-python-with-nltk-or-python-mad]
+-   Use hashing in `vorpy.symbolic.cached_lambdified` on what gets lambdified so that changes to the function automatically
+    cause the cache to be updated.
 
 # References
 
