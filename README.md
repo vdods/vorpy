@@ -73,8 +73,6 @@ The suite of unit tests can be run via the command:
 -   Switch to [pytest](https://docs.pytest.org/en/latest/).
 -   For `sys.stderr.write`-based warnings, create a flag that can be set within the `vorpy` module to silence them.
 -   Use `hashlib` for data caching layer on top of `vorpy.pickle`.
--   Should probably use [dill](https://pypi.python.org/pypi/dill) instead of `pickle`.  See
-    [https://stackoverflow.com/questions/16377215/how-to-pickle-a-namedtuple-instance-correctly].
 -   Make a human-readable hash, which concatenates words to represent elements of a hash space.  This should be
     convertable to/from a binary string.  Examples:
 
