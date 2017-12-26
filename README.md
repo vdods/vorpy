@@ -46,6 +46,7 @@ The suite of unit tests can be run via the command:
 | 0.3.1 | Added a means to salvage results from symplectic integration if an exception is raised during integration. |
 | 0.4.0 | Added `vorpy.pickle`. |
 | 0.4.1 | Changed `vorpy.pickle` to use the `dill` module (which can pickle lambda expressions) instead of the builtin `pickle` module. |
+| 0.4.2 | Updates to be able to submit to `pypi` -- the Python Package Index.  Also a minor exception printing improvement. |
 
 # To-Do List
 

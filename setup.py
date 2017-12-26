@@ -15,6 +15,8 @@ setuptools.setup(
     author='Victor Dods',
     author_email='victor.dods@gmail.com',
     url='https://github.com/vdods/vorpy',
+    download_url='https://github.com/vdods/vorpy/archive/v{0}.tar.gz'.format(vorpy.__version__),
+    keywords=['numerical computation symbolic tensor calculus cached lambdify geometric symplectic integration'],
     license=license,
     packages=setuptools.find_packages(exclude=('future', 'tests')),
     tests_require=('nose'),
