@@ -1,8 +1,7 @@
 import setuptools
 import vorpy
 
-with open('README.md') as f:
-    readme = f.read()
+long_description = open('README.rst').read()
 
 with open('LICENSE') as f:
     license = f.read()
@@ -11,7 +10,7 @@ setuptools.setup(
     name='vorpy',
     version=vorpy.__version__,
     description='VictOR dods\' PYthon package (mostly math-related)',
-    long_description=readme,
+    long_description=long_description,
     author='Victor Dods',
     author_email='victor.dods@gmail.com',
     url='https://github.com/vdods/vorpy',

@@ -2,16 +2,21 @@
 
 A Python package for (usually math-related) code that I've written that finds use over and over.
 
-Vorpy is short for "VictOR dods' PYthon package".  Plus if you Google "vorpy", you come up with some pretty [hilarious](http://www.urbandictionary.com/define.php?term=Vorpy) [shit](http://vorpycrill.bandcamp.com/releases), so it seems like a pretty good name choice.
+Vorpy is short for "VictOR dods' PYthon package".  Plus if you Google "vorpy", you come up with some pretty [hilarious](http://www.urbandictionary.com/define.php?term=Vorpy) [shit](http://vorpycrill.bandcamp.com/releases), so it seems like a good name choice.
 
 # Contents
 
-| Module | Description |
-| ------ | ----------- |
-| [vorpy](https://github.com/vdods/vorpy/tree/master/vorpy) | The root module for the vorpy package. |
-| [vorpy.apply_along_axes](https://github.com/vdods/vorpy/blob/master/vorpy/apply_along_axes.py) | Multi-dimensional generalization of `numpy.apply_along_axis`. |
-| [vorpy.symbolic](https://github.com/vdods/vorpy/blob/master/vorpy/symbolic.py) | Symbolic calculus module.  This module eases use of `sympy`, facilitating the use of vector/tensor calculus (via `numpy.ndarray`s of symbols),  and which allows compilation of symbolic functions into Python code, caching the generated code if desired.  That process is known as 'lambdification' in `sympy`.  Take a look at the `cached_lambdified` function within this source. |
-| [vorpy.symplectic_integration](https://github.com/vdods/vorpy/blob/master/vorpy/symplectic_integration/) | Module implementing symplectic integrators; available is a family of separable Hamiltonian integrators and a nonseparable Hamiltonian integrator. |
+-   [vorpy](https://github.com/vdods/vorpy/tree/master/vorpy) : The root module for the vorpy package.
+-   [vorpy.apply_along_axes](https://github.com/vdods/vorpy/blob/master/vorpy/apply_along_axes.py) : Multi-dimensional
+    generalization of `numpy.apply_along_axis`.
+-   [vorpy.pickle](https://github.com/vdods/vorpy/blob/master/vorpy/pickle.py) : A module which facilitates disk-based caching of
+    data via pickle files.  Useful when using data that is time-consuming to generate but does not often change.
+-   [vorpy.symbolic](https://github.com/vdods/vorpy/blob/master/vorpy/symbolic.py) : Symbolic calculus module.  This module eases
+    use of `sympy`, facilitating the use of vector/tensor calculus (via `numpy.ndarray`s of symbols),  and which allows compilation
+    of symbolic functions into Python code, caching the generated code if desired.  That process is known as 'lambdification' in
+    `sympy`.  Take a look at the `cached_lambdified` function within this source.
+-   [vorpy.symplectic_integration](https://github.com/vdods/vorpy/blob/master/vorpy/symplectic_integration/) : Module implementing
+    symplectic integrators; available is a family of separable Hamiltonian integrators and a nonseparable Hamiltonian integrator.
 
 # How to Install
 
@@ -37,16 +42,14 @@ The suite of unit tests can be run via the command:
 
 # Release Notes
 
-| Version | Notes |
-| ------- | ----- |
-| 0.0.0 | Initial release.  Added `vorpy.symbolic`. |
-| 0.1.0 | Added `vorpy.apply_along_axes`. |
-| 0.2.0 | Added `vorpy.symplectic_integration.separable_hamiltonian`. |
-| 0.3.0 | Added `vorpy.symplectic_integration.nonseparable_hamiltonian`. |
-| 0.3.1 | Added a means to salvage results from symplectic integration if an exception is raised during integration. |
-| 0.4.0 | Added `vorpy.pickle`. |
-| 0.4.1 | Changed `vorpy.pickle` to use the `dill` module (which can pickle lambda expressions) instead of the builtin `pickle` module. |
-| 0.4.2 | Updates to be able to submit to `pypi` -- the Python Package Index.  Also a minor exception printing improvement. |
+- `0.4.2` : Updates to be able to submit to `pypi` -- the Python Package Index.  Also a minor exception printing improvement.
+- `0.4.1` : Changed `vorpy.pickle` to use the `dill` module (which can pickle lambda expressions) instead of the builtin `pickle` module.
+- `0.4.0` : Added `vorpy.pickle`.
+- `0.3.1` : Added a means to salvage results from symplectic integration if an exception is raised during integration.
+- `0.3.0` : Added `vorpy.symplectic_integration.nonseparable_hamiltonian`.
+- `0.2.0` : Added `vorpy.symplectic_integration.separable_hamiltonian`.
+- `0.1.0` : Added `vorpy.apply_along_axes`.
+- `0.0.0` : Initial release.  Added `vorpy.symbolic`.
 
 # To-Do List
 
@@ -86,7 +89,7 @@ The suite of unit tests can be run via the command:
         StupidlyWalkingPersonA07BE5
         Tree10034
 
-    See [https://stackoverflow.com/questions/17753182/getting-a-large-list-of-nouns-or-adjectives-in-python-with-nltk-or-python-mad]
+    See [this](https://stackoverflow.com/questions/17753182/getting-a-large-list-of-nouns-or-adjectives-in-python-with-nltk-or-python-mad).
 -   Use hashing in `vorpy.symbolic.cached_lambdified` on what gets lambdified so that changes to the function automatically
     cause the cache to be updated.
 
@@ -95,4 +98,19 @@ The suite of unit tests can be run via the command:
 -   [http://docs.python-guide.org/en/latest/writing/structure/]
 -   [https://en.wikipedia.org/wiki/Symplectic_integrator]
 -   [https://en.wikipedia.org/wiki/Energy_drift]
--   [https://journals.aps.org/pre/abstract/10.1103/PhysRevE.94.043303] - Molei Tao - Explicit symplectic approximation of nonseparable Hamiltonians: Algorithm and long time performance
+-   [https://journals.aps.org/pre/abstract/10.1103/PhysRevE.94.043303] - Molei Tao - Explicit symplectic approximation
+    of nonseparable Hamiltonians: Algorithm and long time performance
+-   The package index for [dill](https://pypi.python.org/pypi/dill) (which is imported by `vorpy.pickle`) makes the following request:
+
+        If you use dill to do research that leads to publication, we ask that you acknowledge use of dill by citing the following in your publication:
+
+            M.M. McKerns, L. Strand, T. Sullivan, A. Fang, M.A.G. Aivazis,
+            "Building a framework for predictive science", Proceedings of
+            the 10th Python in Science Conference, 2011;
+            http://arxiv.org/pdf/1202.1056
+
+            Michael McKerns and Michael Aivazis,
+            "pathos: a framework for heterogeneous computing", 2010- ;
+            http://trac.mystic.cacr.caltech.edu/project/pathos
+
+        Please see http://trac.mystic.cacr.caltech.edu/project/pathos or http://arxiv.org/pdf/1202.1056 for further information.
