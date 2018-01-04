@@ -78,8 +78,3 @@ Finally, your package can be installed as normal:
 
 -   https://packaging.python.org/tutorials/distributing-packages/
 -   https://packaging.python.org/guides/using-testpypi/#using-test-pypi
-
--   The instructions [here](http://peterdowns.com/posts/first-time-with-pypi.html) are outdated (certain steps are
-    no longer necessary), but still useful.  NOTE: Outdated because certain versions of Python may transmit passwords
-    in plaintext!
-

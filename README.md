@@ -65,6 +65,7 @@ The suite of unit tests can be run via the command:
 
 # To-Do List
 
+-   Include tests in the dist package, so they can be tested at the install site.
 -   Make the `symbolic` module aware of vectorized operations so that fast `numpy`-implemented `ndarray` functions
     can be used instead of structure-forgetting symbolic expressions that are fully written out.  For example,
     the 1st and 2nd total derivatives of a quadratic form are simply matrix expressions which have simple `numpy`
@@ -110,6 +111,7 @@ The suite of unit tests can be run via the command:
 
 # References
 
+-   [Maintainer Release Instructions](release-instructions.md)
 -   [http://docs.python-guide.org/en/latest/writing/structure/]
 -   [https://en.wikipedia.org/wiki/Symplectic_integrator]
 -   [https://en.wikipedia.org/wiki/Energy_drift]

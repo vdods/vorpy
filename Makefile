@@ -1,5 +1,6 @@
 # sdist is a source distribution; bdist_wheel is a "pure Python wheel" (built package)
 dist-for-pypi:
+	python3 generate-README.rst.py
 	rm -rf build dist
 	python3 setup.py sdist
 	python3 setup.py bdist_wheel
