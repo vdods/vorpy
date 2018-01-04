@@ -15,8 +15,10 @@ def make_filename_in_artifacts_dir (filename):
     os.makedirs(TEST_ARTIFACTS_DIR, exist_ok=True)
     return os.path.join(TEST_ARTIFACTS_DIR, filename)
 
+CURVE_T_MAX = 30.0
+
 def compute_reference_integral_curve (N, reference_dt):
-    reference_t_v = np.arange(0.0, 60.0, reference_dt)
+    reference_t_v = np.arange(0.0, CURVE_T_MAX, reference_dt)
     T = len(reference_t_v)
 
     qp_0 = np.zeros((2,N), dtype=float)
@@ -75,14 +77,14 @@ def compare_with_separable_hamiltonian_integrate (N, dt, t_v, order, omega, refe
 
 # This test function takes a while to run.
 def test__compare_with_separable_hamiltonian_integrate ():
-    for N in [1,2,3]:
-        for dt in [0.002, 0.02, 0.2]:
-            t_v = np.arange(0.0, 60.0, dt)
+    for N in [1,2]:
+        for dt in [0.02, 0.2]:
+            t_v = np.arange(0.0, CURVE_T_MAX, dt)
             # The reference solution is computed via vorpy.symplectic_integration.separable_hamiltonian.integrate
             # using a very small timestep, in order to be considered as good as the "true" solution.
             reference_dt = dt/10.0
             reference_t_v,reference_qp_v = compute_reference_integral_curve(N, reference_dt)
-            for order in [2,4,6,8]:
+            for order in [2,4]:
                 omega = vorpy.symplectic_integration.nonseparable_hamiltonian.heuristic_estimate_for_omega(delta=dt, order=order)
                 compare_with_separable_hamiltonian_integrate(N, dt, t_v, order, omega, reference_dt, reference_t_v, reference_qp_v)
 
