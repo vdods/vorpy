@@ -20,7 +20,11 @@ Vorpy is short for "VictOR dods' PYthon package".  Plus if you Google "vorpy", y
 
 # How to Install
 
-Vorpy can be installed directly from this github.com repository using the following command:
+Vorpy can be installed via `pip` using the following command:
+
+    pip install vorpy
+
+Or, it can be installed directly from this github.com repository using the following command:
 
     pip install --upgrade git+https://github.com/vdods/vorpy.git
 
@@ -34,6 +38,13 @@ To uninstall, use the following obvious command:
 
     pip uninstall vorpy
 
+A tarball of a particular tagged version can be obtained from github using a particular link.  The latest version, with
+git tag `v0.4.3`, can be downloaded from:
+
+    https://github.com/vdods/vorpy/archive/v0.4.3.tar.gz
+
+Extracting this will create and populate the `vorpy-0.4.3` directory.
+
 # Running Tests
 
 The suite of unit tests can be run via the command:
@@ -42,6 +53,7 @@ The suite of unit tests can be run via the command:
 
 # Release Notes
 
+- `0.4.3` : More updates to be able to submit to `pypi`.  Made tests generate files to the `test_artifacts` directory.
 - `0.4.2` : Updates to be able to submit to `pypi` -- the Python Package Index.  Also a minor exception printing improvement.
 - `0.4.1` : Changed `vorpy.pickle` to use the `dill` module (which can pickle lambda expressions) instead of the builtin `pickle` module.
 - `0.4.0` : Added `vorpy.pickle`.

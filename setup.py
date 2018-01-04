@@ -2,9 +2,7 @@ import setuptools
 import vorpy
 
 long_description = open('README.rst').read()
-
-with open('LICENSE') as f:
-    license = f.read()
+license = open('LICENSE').read()
 
 setuptools.setup(
     name='vorpy',
@@ -18,6 +16,12 @@ setuptools.setup(
     keywords=['numerical computation symbolic tensor calculus cached lambdify geometric symplectic integration'],
     license=license,
     packages=setuptools.find_packages(exclude=('future', 'tests')),
+    install_requires=[
+        'dill',
+        'numpy',
+        'sympy'
+    ],
+    python_requires='>=3',
     tests_require=('nose'),
     test_suite='nose.collector'
 )

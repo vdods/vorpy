@@ -1,5 +1,7 @@
 __pycache__
 *.pyc
 *.kate-swp
-vorpy.egg-info
+build
+dist
 test_artifacts
+vorpy.egg-info

@@ -49,6 +49,7 @@ The suite of unit tests can be run via the command:
 Release Notes
 =============
 
+-  ``0.4.3`` : More updates to be able to submit to ``pypi``. Made tests generate files to the ``test_artifacts`` directory.
 -  ``0.4.2`` : Updates to be able to submit to ``pypi`` -- the Python Package Index. Also a minor exception printing improvement.
 -  ``0.4.1`` : Changed ``vorpy.pickle`` to use the ``dill`` module (which can pickle lambda expressions) instead of the builtin ``pickle`` module.
 -  ``0.4.0`` : Added ``vorpy.pickle``.
