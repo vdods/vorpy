@@ -2,6 +2,4 @@ __pycache__
 *.pyc
 *.kate-swp
 vorpy.egg-info
-*.png
-test__*.pickle
-test__*.nonexistent_filename
+test_artifacts

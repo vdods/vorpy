@@ -1,5 +1,6 @@
 import itertools
 import numpy as np
+import os
 from .hamiltons_equations import deviation_form
 from .kepler_nd import KeplerNd
 from .pendulum_nd import PendulumNd
@@ -7,6 +8,12 @@ from .results import Results
 import scipy.integrate
 import vorpy
 import vorpy.symplectic_integration
+
+TEST_ARTIFACTS_DIR = 'test_artifacts/symplectic_integration/separable_hamiltonian'
+
+def make_filename_in_artifacts_dir (filename):
+    os.makedirs(TEST_ARTIFACTS_DIR, exist_ok=True)
+    return os.path.join(TEST_ARTIFACTS_DIR, filename)
 
 def compare_integrator_methods (N):
     results = Results()
@@ -76,7 +83,7 @@ def compare_integrator_methods (N):
         )
     )
 
-    filename = 'symplectic_integration.Pendulum{0}d.png'.format(N)
+    filename = make_filename_in_artifacts_dir('symplectic_integration.Pendulum{0}d.png'.format(N))
     results.plot(filename)
 
 def compare_parallel_initial_conditions (N, shape_of_parallelism):
@@ -117,16 +124,18 @@ def compare_parallel_initial_conditions (N, shape_of_parallelism):
         vorpy.symplectic_integration.separable_hamiltonian.integrate(initial_coordinates=qp_0, t_v=t_v, dK_dp=PendulumNd.dK_dp, dV_dq=PendulumNd.dV_dq, update_step_coefficients=vorpy.symplectic_integration.separable_hamiltonian.update_step_coefficients.ruth4)
     )
 
-    filename = 'symplectic_integration_parallel.Pendulum{0}d.shape:{1}.png'.format(N, shape_of_parallelism)
+    filename = make_filename_in_artifacts_dir('symplectic_integration_parallel.Pendulum{0}d.shape:{1}.png'.format(N, shape_of_parallelism))
     results.plot(filename, detrend_Hamiltonian=True)
 
-#def test__compare_integrator_methods ():
-    #for N in [1,2,3]:
-        #compare_integrator_methods(N)
+# This test function takes a while to run.
+def test__compare_integrator_methods ():
+    for N in [1,2,3]:
+        compare_integrator_methods(N)
 
-#def test__compare_parallel_initial_conditions ():
-    #for N,shape_of_parallelism in itertools.product([1,2], [(),(2,),(2,3)]):
-        #compare_parallel_initial_conditions(N, shape_of_parallelism)
+# This test function takes a while to run.
+def test__compare_parallel_initial_conditions ():
+    for N,shape_of_parallelism in itertools.product([1,2], [(),(2,),(2,3)]):
+        compare_parallel_initial_conditions(N, shape_of_parallelism)
 
 def test__salvaged_result ():
     import sys
@@ -168,4 +177,4 @@ def test__salvaged_result ():
         results.add_result('Kepler trajectory', dt, t_v, qp_v, H_v, norm_deviation_form_v, norm_error_v)
         # As you can see in this plot, the energy is not nearly conserved as time goes on, and the norm of the deviation form
         # diverges away from zero as time goes on.
-        results.plot(filename='symplectic_integration.separable_hamiltonian.salvaged_result.png')
+        results.plot(filename=make_filename_in_artifacts_dir('symplectic_integration.separable_hamiltonian.salvaged_result.png'))

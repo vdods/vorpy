@@ -72,7 +72,7 @@ The suite of unit tests can be run via the command:
 -   Move `PendulumNd` and `KeplerNd` from tests dir into vorpy and write tests to symbolically verify all the formulas
     are correct.  The goal would be to create more of these to provide a whole family of dynamical systems that can
     be used and experimented with.
--   Have tests create a `test-artifacts` subdir which all files that the tests produce are put in, so there's an
+-   Have tests create a `test_artifacts` subdir which all files that the tests produce are put in, so there's an
     easy single thing to delete after tests run (or tests can clean this up themselves).
 -   Switch to [pytest](https://docs.pytest.org/en/latest/).
 -   For `sys.stderr.write`-based warnings, create a flag that can be set within the `vorpy` module to silence them.
@@ -92,6 +92,9 @@ The suite of unit tests can be run via the command:
     See [this](https://stackoverflow.com/questions/17753182/getting-a-large-list-of-nouns-or-adjectives-in-python-with-nltk-or-python-mad).
 -   Use hashing in `vorpy.symbolic.cached_lambdified` on what gets lambdified so that changes to the function automatically
     cause the cache to be updated.
+-   Make a module that provides a nice abstraction for concurrent.futures.ProcessPoolExecutor for parallel processing.
+-   Allow multiply-nested dirs for cache_dirname in cached_lambdified -- this would correspond to multiply-nested modules
+    for the cached code.  Use os.makedirs instead of os.mkdir
 
 # References
 

@@ -3,6 +3,12 @@ import os
 import sys
 import vorpy.pickle
 
+TEST_ARTIFACTS_DIR = 'test_artifacts/pickle'
+
+def make_filename_in_artifacts_dir (filename):
+    os.makedirs(TEST_ARTIFACTS_DIR, exist_ok=True)
+    return os.path.join(TEST_ARTIFACTS_DIR, filename)
+
 def delete_file_if_exists (filename):
     if os.path.exists(filename):
         os.remove(filename)
@@ -12,7 +18,7 @@ def assert_files_are_equal (filename0, filename1):
     assert filecmp.cmp(filename0, filename1, shallow=False)
 
 def test__pickle_unpickle ():
-    pickle_filename = 'test__pickle_unpickle.pickle'
+    pickle_filename = make_filename_in_artifacts_dir('test__pickle_unpickle.pickle')
     delete_file_if_exists(pickle_filename)
 
     data = [x**2.5 for x in range(-100,101)]
@@ -25,8 +31,8 @@ def test__pickle_unpickle ():
 def test__unpickle_pickle ():
     # This test depends on test__pickle_unpickle already having passed.
 
-    source_pickle_filename = 'test__unpickle_pickle.source.pickle'
-    dest_pickle_filename = 'test__unpickle_pickle.dest.pickle'
+    source_pickle_filename = make_filename_in_artifacts_dir('test__unpickle_pickle.source.pickle')
+    dest_pickle_filename = make_filename_in_artifacts_dir('test__unpickle_pickle.dest.pickle')
     for filename in [source_pickle_filename, dest_pickle_filename]:
         delete_file_if_exists(filename)
 
@@ -45,7 +51,7 @@ def test__unpickle_pickle ():
     assert_files_are_equal(source_pickle_filename, dest_pickle_filename)
 
 def test__try_to_pickle ():
-    pickle_filename = 'test__try_to_pickle.pickle'
+    pickle_filename = make_filename_in_artifacts_dir('test__try_to_pickle.pickle')
     delete_file_if_exists(pickle_filename)
 
     data = [x**2.5 for x in range(-100,101)]
@@ -54,7 +60,7 @@ def test__try_to_pickle ():
     assert os.path.exists(pickle_filename)
 
 def test__try_to_pickle__lambda ():
-    pickle_filename = 'test__try_to_pickle__lambda.pickle'
+    pickle_filename = make_filename_in_artifacts_dir('test__try_to_pickle__lambda.pickle')
     delete_file_if_exists(pickle_filename)
 
     L = lambda x:x**2
@@ -68,14 +74,14 @@ def test__try_to_pickle__lambda ():
 
 def test__try_to_pickle__failure_IOError ():
     # This should produce an error because this is a directory.
-    path_to_produce_IOError = 'test__try_to_pickle__failure_IOError.nonexistent_filename/'
+    path_to_produce_IOError = make_filename_in_artifacts_dir('test__try_to_pickle__failure_IOError.nonexistent_filename/')
 
     data = [x**2.5 for x in range(-100,101)]
     pickle_succeeded = vorpy.pickle.try_to_pickle(data=data, pickle_filename=path_to_produce_IOError, log_out=sys.stdout)
     assert not pickle_succeeded
 
 def test__try_to_pickle__failure_PickleError ():
-    pickle_filename = 'test__try_to_pickle.pickle'
+    pickle_filename = make_filename_in_artifacts_dir('test__try_to_pickle.pickle')
     delete_file_if_exists(pickle_filename)
 
     # Can't pickle a generator.
@@ -85,8 +91,8 @@ def test__try_to_pickle__failure_PickleError ():
     assert not os.path.exists(pickle_filename)
 
 def test__pickle_with_transform ():
-    pickle_filename_expected = 'test__pickle_with_transform.expected.pickle'
-    pickle_filename_actual = 'test__pickle_with_transform.actual.pickle'
+    pickle_filename_expected = make_filename_in_artifacts_dir('test__pickle_with_transform.expected.pickle')
+    pickle_filename_actual = make_filename_in_artifacts_dir('test__pickle_with_transform.actual.pickle')
     for filename in [pickle_filename_expected, pickle_filename_actual]:
         delete_file_if_exists(filename)
 
@@ -105,7 +111,7 @@ def test__pickle_with_transform ():
 def test__unpickle_with_transform ():
     # This test depends on test__pickle_unpickle already having passed.
 
-    pickle_filename = 'test__unpickle_with_transform.pickle'
+    pickle_filename = make_filename_in_artifacts_dir('test__unpickle_with_transform.pickle')
     delete_file_if_exists(pickle_filename)
 
     # First, create a pickle file.
@@ -130,7 +136,7 @@ def test__unpickle_or_compute__having_to_compute ():
         return expected_data
 
     # Ensure the pickle file does not exist.
-    pickle_filename = 'test__unpickle_or_compute__having_to_compute.pickle'
+    pickle_filename = make_filename_in_artifacts_dir('test__unpickle_or_compute__having_to_compute.pickle')
     delete_file_if_exists(pickle_filename)
 
     actual_data = vorpy.pickle.__unpickle_or_compute(pickle_filename=pickle_filename, computation=computation, log_out=sys.stdout)
@@ -152,7 +158,7 @@ def test__unpickle_or_compute__not_having_to_compute ():
         return expected_data
 
     # First, create a pickle file.
-    pickle_filename = 'test__unpickle_or_compute__not_having_to_compute.pickle'
+    pickle_filename = make_filename_in_artifacts_dir('test__unpickle_or_compute__not_having_to_compute.pickle')
     vorpy.pickle.pickle(data=expected_data, pickle_filename=pickle_filename, log_out=sys.stdout)
     assert os.path.exists(pickle_filename)
 
@@ -173,7 +179,7 @@ def test__unpickle_or_compute_and_try_to_pickle__not_having_to_compute ():
         return expected_data
 
     # First, create a pickle file.
-    pickle_filename = 'test__unpickle_or_compute_and_try_to_pickle__not_having_to_compute.pickle'
+    pickle_filename = make_filename_in_artifacts_dir('test__unpickle_or_compute_and_try_to_pickle__not_having_to_compute.pickle')
     vorpy.pickle.pickle(data=expected_data, pickle_filename=pickle_filename, log_out=sys.stdout)
     assert os.path.exists(pickle_filename)
 
@@ -192,7 +198,7 @@ def test__unpickle_or_compute_and_try_to_pickle__having_to_compute ():
         return expected_data
 
     # Ensure the pickle file does not exist.
-    pickle_filename = 'test__unpickle_or_compute_and_pickle__having_to_compute.pickle'
+    pickle_filename = make_filename_in_artifacts_dir('test__unpickle_or_compute_and_pickle__having_to_compute.pickle')
     if os.path.exists(pickle_filename):
         os.remove(pickle_filename)
 

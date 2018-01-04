@@ -6,6 +6,12 @@ import sympy
 import time
 import vorpy.symbolic
 
+TEST_ARTIFACTS_DIR = 'test_artifacts/symbolic'
+
+def make_filename_in_artifacts_dir (filename):
+    os.makedirs(TEST_ARTIFACTS_DIR, exist_ok=True)
+    return os.path.join(TEST_ARTIFACTS_DIR, filename)
+
 def benchmark_stuff (y_, f_, phi_, A_):
     rng = np.random.RandomState(666)
 
