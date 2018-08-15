@@ -13,11 +13,18 @@ Contents
 -  `vorpy.pickle <https://github.com/vdods/vorpy/blob/master/vorpy/pickle.py>`__ : A module which facilitates disk-based caching of data via pickle files. Useful when using data that is time-consuming to generate but does not often change.
 -  `vorpy.symbolic <https://github.com/vdods/vorpy/blob/master/vorpy/symbolic.py>`__ : Symbolic calculus module. This module eases use of ``sympy``, facilitating the use of vector/tensor calculus (via ``numpy.ndarray``\ s of symbols), and which allows compilation of symbolic functions into Python code, caching the generated code if desired. That process is known as 'lambdification' in ``sympy``. Take a look at the ``cached_lambdified`` function within this source.
 -  `vorpy.symplectic\_integration <https://github.com/vdods/vorpy/blob/master/vorpy/symplectic_integration/>`__ : Module implementing symplectic integrators; available is a family of separable Hamiltonian integrators and a nonseparable Hamiltonian integrator.
+-  `vorpy.tensor <https://github.com/vdods/vorpy/blob/master/vorpy/tensor.py>`__ : Module providing functions for working with tensor values, notably the ``contract`` function, which does the same thing as ``numpy.einsum`` but allows ``dtype=object``.
 
 How to Install
 ==============
 
-Vorpy can be installed directly from this github.com repository using the following command:
+Vorpy can be installed via ``pip`` using the following command:
+
+::
+
+    pip install vorpy
+
+Or, it can be installed directly from this github.com repository using the following command:
 
 ::
 
@@ -37,6 +44,14 @@ To uninstall, use the following obvious command:
 
     pip uninstall vorpy
 
+A tarball of a particular tagged version can be obtained from github using a particular link. The latest version, with git tag ``v0.4.3``, can be downloaded from:
+
+::
+
+    https://github.com/vdods/vorpy/archive/v0.4.3.tar.gz
+
+Extracting this will create and populate the ``vorpy-0.4.3`` directory.
+
 Running Tests
 =============
 
@@ -49,6 +64,7 @@ The suite of unit tests can be run via the command:
 Release Notes
 =============
 
+-  ``0.5.0`` : Addedd ``vorpy.tensor``.
 -  ``0.4.3`` : More updates to be able to submit to ``pypi``. Made tests generate files to the ``test_artifacts`` directory.
 -  ``0.4.2`` : Updates to be able to submit to ``pypi`` -- the Python Package Index. Also a minor exception printing improvement.
 -  ``0.4.1`` : Changed ``vorpy.pickle`` to use the ``dill`` module (which can pickle lambda expressions) instead of the builtin ``pickle`` module.
@@ -62,6 +78,7 @@ Release Notes
 To-Do List
 ==========
 
+-  Include tests in the dist package, so they can be tested at the install site.
 -  Make the ``symbolic`` module aware of vectorized operations so that fast ``numpy``-implemented ``ndarray`` functions can be used instead of structure-forgetting symbolic expressions that are fully written out. For example, the 1st and 2nd total derivatives of a quadratic form are simply matrix expressions which have simple ``numpy`` expressions.
 -  Verify that ``vorpy.apply_along_axes`` is automatically parallelized.
 -  Require ``numpy.ndarray`` or ``tuple`` be the type of the input array(s) for ``apply_along_axes``, so that extra parens to form a trivial tuple are not necessary in the basic case where there is a single input array.
@@ -97,6 +114,7 @@ To-Do List
 References
 ==========
 
+-  `Maintainer Release Instructions <release-instructions.md>`__
 -  [http://docs.python-guide.org/en/latest/writing/structure/]
 -  [https://en.wikipedia.org/wiki/Symplectic\_integrator]
 -  [https://en.wikipedia.org/wiki/Energy\_drift]

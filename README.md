@@ -17,6 +17,7 @@ Vorpy is short for "VictOR dods' PYthon package".  Plus if you Google "vorpy", y
     `sympy`.  Take a look at the `cached_lambdified` function within this source.
 -   [vorpy.symplectic_integration](https://github.com/vdods/vorpy/blob/master/vorpy/symplectic_integration/) : Module implementing
     symplectic integrators; available is a family of separable Hamiltonian integrators and a nonseparable Hamiltonian integrator.
+-   [vorpy.tensor](https://github.com/vdods/vorpy/blob/master/vorpy/tensor.py) : Module providing functions for working with tensor values, notably the `contract` function, which does the same thing as `numpy.einsum` but allows `dtype=object`.
 
 # How to Install
 
@@ -53,6 +54,7 @@ The suite of unit tests can be run via the command:
 
 # Release Notes
 
+- `0.5.0` : Addedd `vorpy.tensor`.
 - `0.4.3` : More updates to be able to submit to `pypi`.  Made tests generate files to the `test_artifacts` directory.
 - `0.4.2` : Updates to be able to submit to `pypi` -- the Python Package Index.  Also a minor exception printing improvement.
 - `0.4.1` : Changed `vorpy.pickle` to use the `dill` module (which can pickle lambda expressions) instead of the builtin `pickle` module.
