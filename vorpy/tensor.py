@@ -4,6 +4,7 @@ In particular, vorpy.tensor.contract works like numpy.einsum but works on dtype=
 (but is probably MUCH slower).
 """
 
+import functools
 import itertools
 import numpy as np
 import operator
@@ -178,7 +179,14 @@ def contract (contraction_string, *tensors, **kwargs):
     component_indices_functions = tuple(component_indices_function(index_string) for index_string in index_strings)
 
     def product_of_components_of_tensors (contracted_and_output_indices_tuple):
-        return reduce(operator.mul, tuple(component(tensor,component_indices_function(contracted_and_output_indices_tuple)) for tensor,component_indices_function in zip(tensors,component_indices_functions)), 1)
+        return functools.reduce(
+            operator.mul,
+            tuple(
+                component(tensor,component_indices_function(contracted_and_output_indices_tuple))
+                for tensor,component_indices_function in zip(tensors,component_indices_functions)
+            ),
+            1,
+        )
 
     def computed_component (output_component_indices):
         return sum(product_of_components_of_tensors((contraction_component_indices, output_component_indices)) for contraction_component_indices in multiindex_iterator(contraction_dims))

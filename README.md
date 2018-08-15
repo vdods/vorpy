@@ -54,7 +54,8 @@ The suite of unit tests can be run via the command:
 
 # Release Notes
 
-- `0.5.0` : Addedd `vorpy.tensor`.
+- `0.5.1` : Fixed a bug where the Python 2 `reduce` was moved to the `functools` module, and so caused a NameError in Python 3.
+- `0.5.0` : Added `vorpy.tensor`.
 - `0.4.3` : More updates to be able to submit to `pypi`.  Made tests generate files to the `test_artifacts` directory.
 - `0.4.2` : Updates to be able to submit to `pypi` -- the Python Package Index.  Also a minor exception printing improvement.
 - `0.4.1` : Changed `vorpy.pickle` to use the `dill` module (which can pickle lambda expressions) instead of the builtin `pickle` module.
