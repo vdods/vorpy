@@ -54,6 +54,7 @@ The suite of unit tests can be run via the command:
 
 # Release Notes
 
+- `0.7.0` : Modification to the symbolic polynomial generating functions.
 - `0.6.0` : Added the `vorpy.manifold` and `vorpy.symplectic` modules, which implement some basic calculus in those categories.
 - `0.5.1` : Fixed a bug where the Python 2 `reduce` was moved to the `functools` module, and so caused a NameError in Python 3.
 - `0.5.0` : Added `vorpy.tensor`.
