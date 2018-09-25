@@ -13,7 +13,7 @@ def lie_bracket (A, B, X):
 
         J__B_reshaped*A - J__A_reshaped*B
 
-    where J_X is the Jacobian matrix of the vector field X.
+    where J_V is the Jacobian matrix of the vector field V.
 
     See https://en.wikipedia.org/wiki/Lie_bracket_of_vector_fields#In_coordinates
     See https://en.wikipedia.org/wiki/Jacobian_matrix_and_determinant
