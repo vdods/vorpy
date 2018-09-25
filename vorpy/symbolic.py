@@ -13,6 +13,7 @@ import re
 import sympy
 import sys
 import traceback
+import vorpy.tensor
 
 def __is_python_identifier (s):
     # Check that the dirname is a valid module name.
@@ -317,40 +318,65 @@ def cached_lambdified (function_id, *, function_creator, cache_dirname='lambdifi
 
     return function_module.__dict__[function_id]
 
-def symbolic_polynomial (coefficient_prefix, degree, X):
+def homogeneous_polynomial (coefficient_prefix, degree, X):
     """
-    Returns a generic polynomial of the given degree with symbolic coefficients,
-    as well as a list of the coefficients.  X is the coordinates to express the
-    polynomial in.  Each polynomial term does not include multiplicity (e.g.
-    the `x*y` term would appear as `a_0_1*x*y`, not as `2*a_0_1*x*y`).
+    Returns a generic homogeneous polynomial of the given degree with symbolic coefficients,
+    as well as a list of the coefficients.  X is the vector of variables to express the polynomial
+    in.  Each polynomial term does not include multiplicity (e.g. the `x*y` term would appear as
+    `a_0_1*x*y`, not as `2*a_0_1*x*y`).
 
     The return value is polynomial, coefficients.
 
     NOTE: This is not a very efficient implementation; in particular, O(n^degree), where n is the
-    dimension of the monomial vector X.  It could be more efficient if only the non-redundant terms
+    dimension of the variables vector X.  It could be more efficient if only the non-redundant terms
     were computed, and the formula to derive the multiplicity for each term was used.
     """
-    # TODO: Allow specification of which degrees should be present in this polynomial
+    X_reshaped = X.reshape(-1)
+
+    coefficient_accumulator = []
+    polynomial_accumulator = sympy.Integer(0)
+
+    degree_shape                = (X_reshaped.size,)*degree
+    coefficients                = tensor(coefficient_prefix, degree_shape)
+    # TODO: Have to encode the symmetries in the coefficients -- in particular, could replace any
+    # coefficient with non-strictly-increasing indices with the corresponding one that has
+    # strictly increasing indices.
+    for I in multiindex_iterator(degree_shape):
+        # Replace the non-strictly-increasing-indexed coefficients with 0, and store the rest for return.
+        if I != tuple(sorted(I)):
+            coefficients[I] = 0
+        else:
+            coefficient_accumulator.append(coefficients[I])
+
+    degree_p_variable_tensor    = vorpy.tensor.tensor_power_of_vector(X_reshaped, degree)
+    # Because of the sparsification done above, multiplying it out this way is somewhat inefficient, but it's fine for now.
+    polynomial_accumulator     += np.dot(coefficients.reshape(-1), degree_p_variable_tensor.reshape(-1))
+
+    return polynomial_accumulator, coefficient_accumulator
+
+def polynomial (coefficient_prefix, degree_i, X):
+    """
+    Returns a generic polynomial of the given degrees (the values returned from the degree_i iterator) with
+    symbolic coefficients, as well as a list of the coefficients.  X is the vector of variables to express
+    the polynomial in.  Each polynomial term does not include multiplicity (e.g. the `x*y` term would appear
+    as `a_0_1*x*y`, not as `2*a_0_1*x*y`).
+
+    The return value is polynomial, coefficients.
+
+    NOTE: This is not a very efficient implementation; in particular, O(n^D), where n is the dimension of
+    the variables vector X, and D is the highest value produced by degree_i.  It could be more efficient
+    if only the non-redundant terms were computed, and the formula to derive the multiplicity for each
+    term was used.
+    """
 
     X_reshaped = X.reshape(-1)
 
     coefficient_accumulator = []
-    polynomial_accumulator = sp.Integer(0)
-    for p in range(degree+1):
-        degree_shape                = (X_reshaped.size,)*p
-        degree_p_coefficients       = vorpy.symbolic.tensor(coefficient_prefix, degree_shape)
-        # TODO: Have to encode the symmetries in the coefficients -- in particular, could replace any
-        # coefficient with non-strictly-increasing indices with the corresponding one that has
-        # strictly increasing indices.
-        for I in vorpy.tensor.multiindex_iterator(degree_shape):
-            # Replace the non-strictly-increasing-indexed coefficients with 0, and store the rest for return.
-            if I != tuple(sorted(I)):
-                degree_p_coefficients[I] = 0
-            else:
-                coefficient_accumulator.append(degree_p_coefficients[I])
-
-        degree_p_variable_tensor    = tensor_power_of_vector(X_reshaped, p)
-        # Because of the sparsification done above, multiplying it out this way is somewhat inefficient, but it's fine for now.
-        polynomial_accumulator     += np.dot(degree_p_coefficients.reshape(-1), degree_p_variable_tensor.reshape(-1))
+    polynomial_accumulator = sympy.Integer(0)
+    # Just sum up homogeneous polynomials of the specified degrees.
+    for p in degree_i:
+        degree_p_polynomial, degree_p_coefficients = homogeneous_polynomial(coefficient_prefix, p, X)
+        polynomial_accumulator += degree_p_polynomial
+        coefficient_accumulator += degree_p_coefficients
 
     return polynomial_accumulator, coefficient_accumulator

@@ -214,3 +214,49 @@ def test_lambdified_cached ():
     print('')
 
     print('unit test passed.')
+
+def test_homogeneous_polynomial ():
+    x,y,z = X = np.array((sympy.var('x'), sympy.var('y'), sympy.var('z')))
+
+    degree = 0
+    h0, C0 = vorpy.symbolic.homogeneous_polynomial('a', degree, X)
+    print(f'homogeneous polynomial of degree {degree} in variables {X} is {h0}, and it has coefficients {C0}')
+    assert np.shape(C0) == (1,)
+    assert np.all(h0 == C0[0])
+
+    degree = 1
+    h1, C1 = vorpy.symbolic.homogeneous_polynomial('a', degree, X)
+    print(f'homogeneous polynomial of degree {degree} in variables {X} is {h1}, and it has coefficients {C1}')
+    assert np.shape(C1) == (3,)
+    assert np.all(h1 == C1[0]*x + C1[1]*y + C1[2]*z)
+
+    degree = 2
+    h2, C2 = vorpy.symbolic.homogeneous_polynomial('a', degree, X)
+    print(f'homogeneous polynomial of degree {degree} in variables {X} is {h2}, and it has coefficients {C2}')
+    assert np.shape(C2) == (6,)
+    assert np.all(h2 == C2[0]*x**2 + C2[1]*x*y + C2[2]*x*z + C2[3]*y**2 + C2[4]*y*z + C2[5]*z**2)
+
+    print('test_homogeneous_polynomial passed')
+
+def test_polynomial ():
+    x,y,z = X = np.array((sympy.var('x'), sympy.var('y'), sympy.var('z')))
+
+    assert vorpy.symbolic.homogeneous_polynomial('a', 0, X)[0] == vorpy.symbolic.polynomial('a', range(1), X)[0]
+    assert vorpy.symbolic.homogeneous_polynomial('a', 1, X)[0] == vorpy.symbolic.polynomial('a', range(2), X)[0] - vorpy.symbolic.polynomial('a', range(1), X)[0]
+    assert vorpy.symbolic.homogeneous_polynomial('a', 2, X)[0] == vorpy.symbolic.polynomial('a', range(3), X)[0] - vorpy.symbolic.polynomial('a', range(2), X)[0]
+    assert vorpy.symbolic.homogeneous_polynomial('a', 3, X)[0] == vorpy.symbolic.polynomial('a', range(4), X)[0] - vorpy.symbolic.polynomial('a', range(3), X)[0]
+
+    h0, C0 = vorpy.symbolic.homogeneous_polynomial('a', 0, X)
+    h2, C2 = vorpy.symbolic.homogeneous_polynomial('a', 2, X)
+    h5, C5 = vorpy.symbolic.homogeneous_polynomial('a', 5, X)
+
+    p, C = vorpy.symbolic.polynomial('a', [0, 2, 5], X)
+    assert p == h0 + h2 + h5
+    assert C == C0 + C2 + C5
+
+    print('test_polynomial passed')
+
+if __name__ == '__main__':
+    test_homogeneous_polynomial()
+    test_polynomial()
+
