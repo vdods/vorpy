@@ -44,6 +44,7 @@ def component (T, multiindex):
     """
     return T[multiindex] if hasattr(T,'shape') else T
 
+# NOTE: This is present (in possibly better form) in vorpy.symbolic.  TODO: Consolidate.
 def multiindex_iterator (multiindex_shape):
     """
     Returns an iterator for a multiindex for the given shape.  For example,
@@ -197,3 +198,28 @@ def contract (contraction_string, *tensors, **kwargs):
         retval = retval[tuple()]
     return retval
 
+def tensor_power_of_vector (V, p):
+    """
+    Returns the pth tensor power of vector V.  This should be a tensor having order p,
+    which looks like V \otimes ... \otimes V (with p factors).  If p is zero, then this
+    returns 1.
+
+    TODO: Implement this for tensors of arbitrary order (especially including 0-tensors).
+    """
+
+    V_order = vorpy.tensor.order(V)
+    if V_order != 1:
+        raise FancyException(f'Expected V to be a vector (i.e. a 1-tensor), but it was actually a {V_order}-tensor')
+    if p < 0:
+        raise FancyException(f'Expected p to be a nonnegative integer, but it was actually {p}')
+
+    if p == 0:
+        return np.array(1) # TODO: Should this be an actual scalar?
+    elif p == 1:
+        return V
+    else:
+        assert len(V.shape) == 1 # This should be equivalent to V_order == 1.
+        V_dim = V.shape[0]
+        V_to_the_p_minus_1 = tensor_power_of_vector(V, p-1)
+        retval_shape = (V_dim,)*p
+        return np.outer(V, V_to_the_p_minus_1.reshape(-1)).reshape(*retval_shape)

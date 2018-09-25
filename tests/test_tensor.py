@@ -1,4 +1,5 @@
-import sympy
+import numpy as np
+import sympy as sp
 import sys
 import traceback
 import vorpy.symbolic
@@ -6,7 +7,7 @@ import vorpy.tensor
 
 def test_contract ():
     # Define a bunch of tensors to use in the tests
-    x = sympy.symbols('x')
+    x = sp.symbols('x')
     T_ = vorpy.symbolic.tensor('z', tuple())
     T_4 = vorpy.symbolic.tensor('a', (4,))
     T_5 = vorpy.symbolic.tensor('b', (5,))
@@ -211,3 +212,46 @@ def test_contract ():
                     pass_count += 1
     if unit_test_count > 0:
         print('Summary: {0} unit tests, {1} passed, {2} failed, failure rate was {3}%'.format(unit_test_count, pass_count, fail_count, float(fail_count)*100.0/unit_test_count))
+
+def tensor_power_of_vector__test ():
+    V = np.array((sp.var('x'), sp.var('y'), sp.var('z')))
+
+    #print(f'V = {V}')
+    #for p in range(5):
+        #print(f'vorpy.tensor.tensor_power_of_vector(V, {p}):')
+        #print(f'{vorpy.tensor.tensor_power_of_vector(V, p)}')
+        #print()
+
+    # Specific comparisons
+
+    power           = 0
+    expected_value  = 1
+    actual_value    = vorpy.tensor.tensor_power_of_vector(V, power)
+    if not np.all(expected_value == actual_value):
+        raise FancyException(f'For power {power}, expected {expected_value} but actual value was {actual_value}')
+
+    power           = 1
+    expected_value  = V
+    actual_value    = vorpy.tensor.tensor_power_of_vector(V, power)
+    if not np.all(expected_value == actual_value):
+        raise FancyException(f'For power {power}, expected {expected_value} but actual value was {actual_value}')
+
+    power           = 2
+    expected_value  = vorpy.tensor.contract('i,j', V, V, dtype=object)
+    actual_value    = vorpy.tensor.tensor_power_of_vector(V, power)
+    if not np.all(expected_value == actual_value):
+        raise FancyException(f'For power {power}, expected {expected_value} but actual value was {actual_value}')
+
+    power           = 3
+    expected_value  = vorpy.tensor.contract('i,j,k', V, V, V, dtype=object)
+    actual_value    = vorpy.tensor.tensor_power_of_vector(V, power)
+    if not np.all(expected_value == actual_value):
+        raise FancyException(f'For power {power}, expected {expected_value} but actual value was {actual_value}')
+
+    power           = 4
+    expected_value  = vorpy.tensor.contract('i,j,k,l', V, V, V, V, dtype=object)
+    actual_value    = vorpy.tensor.tensor_power_of_vector(V, power)
+    if not np.all(expected_value == actual_value):
+        raise FancyException(f'For power {power}, expected {expected_value} but actual value was {actual_value}')
+
+    print('tensor_power_of_vector__test passed')

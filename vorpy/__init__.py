@@ -1,4 +1,4 @@
-__version__ = '0.5.1'
+__version__ = '0.6.0'
 
 from .apply_along_axes import apply_along_axes
 

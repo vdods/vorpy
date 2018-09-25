@@ -58,7 +58,7 @@ def test__apply_along_axes ():
                         multislice[result_non_output_axis_v[0]] = check_i0
                         multislice[result_non_output_axis_v[1]] = check_i1
                         # print('multislice = {0}'.format(multislice))
-                        assert is_symmetric(result[multislice])
+                        assert is_symmetric(result[tuple(multislice)])
 
     print('test__apply_along_axes passed.')
 

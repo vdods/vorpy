@@ -54,6 +54,7 @@ The suite of unit tests can be run via the command:
 
 # Release Notes
 
+- `0.6.0` : Added the `vorpy.manifold` and `vorpy.symplectic` modules, which implement some basic calculus in those categories.
 - `0.5.1` : Fixed a bug where the Python 2 `reduce` was moved to the `functools` module, and so caused a NameError in Python 3.
 - `0.5.0` : Added `vorpy.tensor`.
 - `0.4.3` : More updates to be able to submit to `pypi`.  Made tests generate files to the `test_artifacts` directory.
@@ -68,6 +69,8 @@ The suite of unit tests can be run via the command:
 
 # To-Do List
 
+-   Consolidate vorpy.symbolic.multiindex_iterator and vorpy.tensor.multiindex_iterator (probably use the one in
+    symbolic because it looks fancier, but it does belong within the vorpy.tensor module).
 -   Include tests in the dist package, so they can be tested at the install site.
 -   Make the `symbolic` module aware of vectorized operations so that fast `numpy`-implemented `ndarray` functions
     can be used instead of structure-forgetting symbolic expressions that are fully written out.  For example,

@@ -51,7 +51,7 @@ def variable (name):
     A convenient frontend to sympy.symbols, except that it escapes commas, so that the single
     variable name can contain a comma.  E.g. 'Y[0,1]'.
     """
-    return sympy.symbols(name.replace(',','\,'))
+    return sympy.symbols(name.replace(',','\\,'))
 
 def tensor (name, shape):
     """
@@ -316,3 +316,41 @@ def cached_lambdified (function_id, *, function_creator, cache_dirname='lambdifi
             raise
 
     return function_module.__dict__[function_id]
+
+def symbolic_polynomial (coefficient_prefix, degree, X):
+    """
+    Returns a generic polynomial of the given degree with symbolic coefficients,
+    as well as a list of the coefficients.  X is the coordinates to express the
+    polynomial in.  Each polynomial term does not include multiplicity (e.g.
+    the `x*y` term would appear as `a_0_1*x*y`, not as `2*a_0_1*x*y`).
+
+    The return value is polynomial, coefficients.
+
+    NOTE: This is not a very efficient implementation; in particular, O(n^degree), where n is the
+    dimension of the monomial vector X.  It could be more efficient if only the non-redundant terms
+    were computed, and the formula to derive the multiplicity for each term was used.
+    """
+    # TODO: Allow specification of which degrees should be present in this polynomial
+
+    X_reshaped = X.reshape(-1)
+
+    coefficient_accumulator = []
+    polynomial_accumulator = sp.Integer(0)
+    for p in range(degree+1):
+        degree_shape                = (X_reshaped.size,)*p
+        degree_p_coefficients       = vorpy.symbolic.tensor(coefficient_prefix, degree_shape)
+        # TODO: Have to encode the symmetries in the coefficients -- in particular, could replace any
+        # coefficient with non-strictly-increasing indices with the corresponding one that has
+        # strictly increasing indices.
+        for I in vorpy.tensor.multiindex_iterator(degree_shape):
+            # Replace the non-strictly-increasing-indexed coefficients with 0, and store the rest for return.
+            if I != tuple(sorted(I)):
+                degree_p_coefficients[I] = 0
+            else:
+                coefficient_accumulator.append(degree_p_coefficients[I])
+
+        degree_p_variable_tensor    = tensor_power_of_vector(X_reshaped, p)
+        # Because of the sparsification done above, multiplying it out this way is somewhat inefficient, but it's fine for now.
+        polynomial_accumulator     += np.dot(degree_p_coefficients.reshape(-1), degree_p_variable_tensor.reshape(-1))
+
+    return polynomial_accumulator, coefficient_accumulator
