@@ -22,6 +22,8 @@ def __is_python_identifier (s):
     return len(s) > 0 and s[0] in alphabetical_or_underscore and all(c in alphabetical_or_underscore or c in digits for c in s[1:])
 
 def __one_pass_replacement (s, replacement_d):
+    if len(replacement_d) == 0:
+        return s
     # This was taken from http://stackoverflow.com/questions/6116978/python-replace-multiple-strings
     escaped_replacement_d = dict((re.escape(k),v) for k,v in replacement_d.items())
     pattern = re.compile('|'.join(escaped_replacement_d.keys()))
