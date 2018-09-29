@@ -45,9 +45,6 @@ def symplectic_gradient_of (f, X):
     Hamilton's equations of motion for the Hamiltonian function f.
     """
 
-    #df_dq = vorpy.symbolic.differential(f, X[0,:])
-    #df_dp = vorpy.symbolic.differential(f, X[1,:])
-    #return np.vstack((df_dp, -df_dq))
     df = vorpy.symbolic.differential(f, X)
-    assert df.shape == (2,3)
+    assert df.shape == X.shape
     return symplectic_dual_of_covector_field(df)
