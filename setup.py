@@ -16,12 +16,8 @@ setuptools.setup(
     keywords=['numerical computation symbolic tensor calculus cached lambdify geometric symplectic integration'],
     license=license,
     packages=setuptools.find_packages(exclude=('future', 'tests')),
-    install_requires=[
-        'dill',
-        'numpy',
-        'sympy'
-    ],
-    python_requires='>=3',
+    install_requires=list(map(str.strip, open('requirements.txt', 'rt').readlines())),
+    python_requires='>=3.6',
     tests_require=('nose'),
     test_suite='nose.collector'
 )
