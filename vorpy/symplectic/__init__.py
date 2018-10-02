@@ -14,7 +14,7 @@ def symplectic_dual_of_vector_field (V):
     the vector field.
     """
     if len(V.shape) != 2 or V.shape[0] != 2 or V.shape[1] == 0:
-        raise FancyException(f'Expected V to have shape (2,n) for some n > 0, but instead it had shape {V.shape}')
+        raise TypeError(f'Expected V to have shape (2,n) for some n > 0, but instead it had shape {V.shape}')
 
     return np.vstack((-V[1,:], V[0,:]))
 
@@ -31,7 +31,7 @@ def symplectic_dual_of_covector_field (C):
     the covector field.
     """
     if len(C.shape) != 2 or C.shape[0] != 2 or C.shape[1] == 0:
-        raise FancyException(f'Expected C to have shape (2,n) for some n > 0, but instead it had shape {C.shape}')
+        raise TypeError(f'Expected C to have shape (2,n) for some n > 0, but instead it had shape {C.shape}')
 
     return np.vstack((C[1,:], -C[0,:]))
 
