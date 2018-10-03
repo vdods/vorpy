@@ -14,10 +14,12 @@ typecheck-strict:
 clean:
 	rm -rf build dist
 
+README.rst: README.md generate-README.rst.py
+	python3.6 generate-README.rst.py
+
 # sdist is a source distribution; bdist_wheel is a "pure Python wheel" (built package)
 .PHONY: dist-for-pypi
-dist-for-pypi: clean
-	python3.6 generate-README.rst.py
+dist-for-pypi: README.rst
 	python3.6 setup.py sdist
 	python3.6 setup.py bdist_wheel
 
