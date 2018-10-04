@@ -13,6 +13,13 @@ def scalar_cross_product_tensor (*, dtype=float):
     Note that because the cross product is defined as a tensor that is meant to contract with
     indices, it can be applied to arguments having tensor order higher than 1 (i.e. the operands
     don't have to be vectors).
+
+    In particular, the scalar cross product tensor is
+
+        [  0 1 ]
+        [ -1 0 ]
+
+    and for reference, the scalar cross product between vectors (a,b) and (x,y) is a*y - b*x.
     """
     retval = np.zeros((2,2), dtype=dtype)
     retval[0,1] = dtype( 1)
