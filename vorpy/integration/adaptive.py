@@ -149,9 +149,10 @@ class IntegrateVectorFieldResults:
     def __init__ (self, t_v:np.ndarray, y_t:np.ndarray, error_vd:np.ndarray, t_step_v:np.ndarray) -> None:
         # Check the identity claimed for t_v and t_step_v.
         identity_failure_v = (t_v[:-2]+t_step_v[:-1]) - t_v[1:-1]
-        print(f'max identity failure: {np.max(np.abs(identity_failure_v))}')
-        assert np.max(np.abs(identity_failure_v)) == 0
-        print(f'max naive identity failure: {np.max(np.abs(np.diff(t_v[:-1]) - t_step_v[:-1]))}')
+        if len(identity_failure_v) > 0:
+            #print(f'max identity failure: {np.max(np.abs(identity_failure_v))}')
+            assert np.max(np.abs(identity_failure_v)) == 0
+            #print(f'max naive identity failure: {np.max(np.abs(np.diff(t_v[:-1]) - t_step_v[:-1]))}')
 
         # Sequence of time values, indexed as t_v[i].
         self.t_v        = t_v
@@ -174,8 +175,8 @@ def integrate_vector_field (
     *,
     vector_field:typing.Callable[[float,np.ndarray],np.ndarray],
     t_initial:float,
-    y_initial:np.ndarray,
     t_final:float,
+    y_initial:np.ndarray,
     controlled_quantity_d:typing.Dict[str,ControlledQuantity],
     controlled_sq_ltee:ControlledSquaredLTEE,
 ) -> IntegrateVectorFieldResults:
@@ -239,7 +240,8 @@ def integrate_vector_field (
         def log_message (message:str) -> None:
             pass
 
-    try:
+    #try:
+    if True:
         t_step = 1.0e-2 # Arbitrary for now
         t_duration = t_final - t_initial
         iteration_index = 0
@@ -359,11 +361,11 @@ def integrate_vector_field (
             integrator.set_inputs(*integrator.get_outputs())
             iteration_index += 1
 
-    except KeyboardInterrupt as e:
-        print('Caught KeyboardInterrupt -- returning existing results.')
-        #raise SalvagedResultsException(construct_results()) from e
-    finally:
-        print('stuff')
+    #except KeyboardInterrupt as e:
+        #print('Caught KeyboardInterrupt -- returning existing results.')
+        ##raise SalvagedResultsException(construct_results()) from e
+    #finally:
+        #print('stuff')
 
     print(f'returning results')
 
@@ -569,16 +571,6 @@ if __name__ == '__main__':
                 delta = q_i - q_j
                 return sp.sqrt(np.dot(delta, delta))
             return np.array([norm_delta_ij(0,1), norm_delta_ij(0,2), norm_delta_ij(1,2)])
-
-        #def norm_delta (i:int, j:int) -> typing.Callable[[np.ndarray],typing.Any]:
-            #"""Returns the expression defining the distance between bodies i and j."""
-            #def norm_delta_ij (qp:np.ndarray) -> typing.Any:
-                #q = qp[0,...]
-                #q_i = q[i,:]
-                #q_j = q[j,:]
-                #delta = q_i - q_j
-                #return sp.sqrt(np.dot(delta, delta))
-            #return norm_delta_ij
 
         def body_vertex_angles (qp:np.ndarray) -> np.ndarray:
             """Returns the angle of the vertex of the shape triangle that body i sits at for i = 0, 1, 2."""
