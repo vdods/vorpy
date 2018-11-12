@@ -71,6 +71,16 @@ The suite of unit tests can be run via the command:
 
 # To-Do List
 
+-   Need to add a shape check in `vorpy.symbolic.lambdified` to verify that the argument has the expected shape.  Ran into
+    a hard-to-find bug that was the result of passing in the wrong shape and it happily not complaining.
+-   Make a version of `vorpy.tensor.contract` which allows for general contractions, instead of fixed letter-based contractions.
+-   Reorganize module structure to reflect the category theory of the subjects (e.g. `vorpy.man` for the category of manifolds,
+    `vorpy.vec` for the category of vector spaces, `vorpy.man.sympl` for the category of symplectic manifolds, `vorpy.man.riem`
+    for the category of Riemannian manifolds, etc).
+-   Add parsing of 'ij,kl->iljk' style string (as in `numpy.einsum`) to `vorpy.tensor.contract`, which will just replace
+    the `output` kwarg.
+-   Make sure `tests` doesn't get installed (it looks like it is).  OR, put tests under vorpy module (this is probably better).
+-   Look into using pytorch for faster numerics.
 -   Consolidate vorpy.symbolic.multiindex_iterator and vorpy.tensor.multiindex_iterator (probably use the one in
     symbolic because it looks fancier, but it does belong within the vorpy.tensor module).
 -   Include tests in the dist package, so they can be tested at the install site.
