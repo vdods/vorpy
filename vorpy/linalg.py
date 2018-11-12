@@ -1,6 +1,8 @@
 import numpy as np
+import typing
+import vorpy.tensor
 
-def scalar_cross_product_tensor (*, dtype=float):
+def scalar_cross_product_tensor (*, dtype=float) -> np.ndarray:
     """
     Returns the 2-tensor which defines the scalar cross product in R^2, meaning that
 
@@ -26,7 +28,7 @@ def scalar_cross_product_tensor (*, dtype=float):
     retval[1,0] = dtype(-1)
     return retval
 
-def cross_product_tensor (*, dtype=float):
+def cross_product_tensor (*, dtype=float) -> np.ndarray:
     """
     Returns the 3-tensor which defines the cross product in R^3, meaning that
 
