@@ -26,10 +26,10 @@ def lie_bracket__test ():
 
     # Compute the Lie bracket the smart way (just as a function of the vector fields' coordinate expressions),
     # applied to a generic function of the coordinates.
-    computed_value = vorpy.manifold.apply_vector_field_to_function(lb__A_B, f, X)
+    computed_value = vorpy.manifold.directional_derivative(lb__A_B, f, X)
     # Compute the Lie bracket the definitional way (as the commutator of vector fields acting as derivations
     # on functions), applied to a generic function of the coordinates.
-    expected_value = vorpy.manifold.apply_vector_field_to_function(A, vorpy.manifold.apply_vector_field_to_function(B, f, X), X) - vorpy.manifold.apply_vector_field_to_function(B, vorpy.manifold.apply_vector_field_to_function(A, f, X), X)
+    expected_value = vorpy.manifold.directional_derivative(A, vorpy.manifold.directional_derivative(B, f, X), X) - vorpy.manifold.directional_derivative(B, vorpy.manifold.directional_derivative(A, f, X), X)
 
     error = (computed_value - expected_value).simplify()
     #print(f'error in lie brackets (expected value is 0) = {error}')

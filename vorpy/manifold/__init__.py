@@ -1,9 +1,44 @@
 import numpy as np
+import sympy as sp
+import typing
 import vorpy.symbolic
 
-def apply_vector_field_to_function (V, f, X):
-    """This returns the directional derivative of f along V in coordinates X."""
-    return np.dot(V.reshape(-1), vorpy.symbolic.differential(f, X).reshape(-1)).simplify()
+def directional_derivative (
+    V:np.ndarray,
+    f:typing.Any,
+    X:np.ndarray,
+    *,
+    post_process_o:typing.Optional[typing.Callable[[typing.Any],typing.Any]]=sp.simplify,
+) -> np.ndarray:
+    """
+    This returns the directional derivative of f along V in coordinates X.
+
+    If post_process_o is not None, will call post_process_o on each component of the result.
+    The default for post_process_o is sympy.simplify.
+    """
+    if V.shape != X.shape:
+        raise TypeError(f'expected vector field V to have the same shape as coordinates X, but V.shape = {V.shape} and X.shape = {X.shape}')
+
+    V_flat = V.reshape(-1)
+    f_flat = np.reshape(f, -1)
+    X_flat = X.reshape(-1)
+    df_flat = vorpy.symbolic.differential(f_flat, X_flat)
+    assert df_flat.shape == f_flat.shape + X_flat.shape
+    V_dot_df = np.dot(df_flat, V_flat).reshape(np.shape(f))
+
+    # For some reason, the result of sp.simplify(V_dot_df) is class
+    # 'sympy.tensor.array.dense_ndim_array.ImmutableDenseNDimArray'
+    # so instead call sp.simplify on each element of the result so
+    # that it is a numpy.ndarray.  If the order of the result is
+    # zero, then extract the single, scalar element.
+    if post_process_o is not None:
+        V_dot_df = np.vectorize(post_process_o)(V_dot_df)
+
+    # TODO: test on scalar expressions f, as this [()] expression may not work in that case
+    if V_dot_df.shape == ():
+        return V_dot_df[()]
+    else:
+        return V_dot_df
 
 def lie_bracket (A, B, X):
     """
