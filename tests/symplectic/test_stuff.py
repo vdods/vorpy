@@ -1,8 +1,315 @@
 import numpy as np
+import scipy.linalg
 import sympy as sp
+import typing
 import vorpy.manifold
 import vorpy.symbolic
 import vorpy.symplectic
+
+def run_and_expect_exception (procedure:typing.Callable[[],None], exception_type:typing.Any) -> None:
+    try:
+        procedure()
+        assert False, f'expected exception of type {exception_type} but did not catch one'
+    except BaseException as e:
+        assert isinstance(e, exception_type), f'expected exception of type {exception_type}, but caught one of type {type(e)}'
+
+def run_and_expect_no_exception (procedure:typing.Callable[[],None]) -> None:
+    try:
+        procedure()
+    except BaseException as e:
+        assert False, f'expected no exception but caught exception {e}'
+
+def test_validate_darboux_coordinates_quantity_or_raise ():
+    run_and_expect_exception(lambda:vorpy.symplectic.validate_darboux_coordinates_quantity_or_raise(None), TypeError)
+    run_and_expect_exception(lambda:vorpy.symplectic.validate_darboux_coordinates_quantity_or_raise('blah'), TypeError)
+    run_and_expect_exception(lambda:vorpy.symplectic.validate_darboux_coordinates_quantity_or_raise(1), TypeError)
+    run_and_expect_no_exception(lambda:vorpy.symplectic.validate_darboux_coordinates_quantity_or_raise([4,5]))
+    # Doesn't matter that they're not numbers or symbols.
+    run_and_expect_no_exception(lambda:vorpy.symplectic.validate_darboux_coordinates_quantity_or_raise(['hippo','ostrich']))
+    run_and_expect_no_exception(lambda:vorpy.symplectic.validate_darboux_coordinates_quantity_or_raise([[True],[False]]))
+
+    qp_ = vorpy.symplectic.cotangent_bundle_darboux_coordinates(()) # Empty shape means configuration space is a scalar.
+    run_and_expect_no_exception(lambda:vorpy.symplectic.validate_darboux_coordinates_quantity_or_raise(qp_, quantity_name='qp_'))
+    for i in range(1,4):
+        qp_i = vorpy.symplectic.cotangent_bundle_darboux_coordinates((i,))
+        run_and_expect_no_exception(lambda:vorpy.symplectic.validate_darboux_coordinates_quantity_or_raise(qp_i, quantity_name='qp_i'))
+        for j in range(1,4):
+            qp_ij = vorpy.symplectic.cotangent_bundle_darboux_coordinates((i,j))
+            run_and_expect_no_exception(lambda:vorpy.symplectic.validate_darboux_coordinates_quantity_or_raise(qp_ij, quantity_name='qp_ij'))
+            for k in range(1,4):
+                qp_ijk = vorpy.symplectic.cotangent_bundle_darboux_coordinates((i,j,k))
+                run_and_expect_no_exception(lambda:vorpy.symplectic.validate_darboux_coordinates_quantity_or_raise(qp_ijk, quantity_name='qp_ijk'))
+    print('test_is_darboux_coordinates_quantity passed')
+
+# TODO: test tautological one form (pullback-canceling property?)
+
+# TODO: test canonical symplectic form (equal to d(tautological_one_form))
+# also test that pullback by one-form gives d of that one form (due to commutation of pullback and d)
+
+def test_canonical_symplectic_form_abstract_and_inverse ():
+    omega       = vorpy.symplectic.canonical_symplectic_form_abstract(dtype=int)
+    omega_inv   = vorpy.symplectic.canonical_symplectic_form_abstract_inverse(dtype=int)
+    assert omega.shape == (2,2)
+    assert omega_inv.shape == (2,2)
+    assert np.all(np.dot(omega, omega_inv) == np.eye(2))
+    assert np.all(np.dot(omega_inv, omega) == np.eye(2))
+    assert np.all(omega.T == -omega)
+    assert np.all(omega.T == omega_inv)
+    assert np.all(omega_inv.T == -omega_inv)
+    assert np.all(omega_inv.T == omega)
+    print('test_canonical_symplectic_form_abstract_and_inverse passed')
+
+def test_canonical_symplectic_form_and_inverse ():
+    shape_v = [(2,), (2,1), (2,2), (2,3), (2,1,1), (2,1,2), (2,2,2), (2,3,4), (2,1,1,1), (2,3,4,5)]
+    for shape in shape_v:
+        dimension_of_shape = vorpy.tensor.dimension_of_shape(shape)
+        omega       = vorpy.symplectic.canonical_symplectic_form(shape, dtype=int)
+        omega_inv   = vorpy.symplectic.canonical_symplectic_form_inverse(shape, dtype=int)
+        assert omega.shape == shape+shape
+        assert omega_inv.shape == shape+shape
+
+        input_indices = slice(0, len(shape))
+        output_indices = slice(len(shape), 2*len(shape))
+
+        omega_flat = omega.reshape(dimension_of_shape,dimension_of_shape)
+        omega_inv_flat = omega_inv.reshape(dimension_of_shape,dimension_of_shape)
+
+        assert np.all(np.dot(omega_flat, omega_inv_flat).reshape(omega.shape) == vorpy.tensor.identity_tensor(shape, dtype=int))
+        assert np.all(np.dot(omega_inv_flat, omega_flat).reshape(omega.shape) == vorpy.tensor.identity_tensor(shape, dtype=int))
+        assert np.all(omega_flat.T == -omega_flat)
+        assert np.all(omega_flat.T == omega_inv_flat)
+        assert np.all(omega_inv_flat.T == -omega_inv_flat)
+        assert np.all(omega_inv_flat.T == omega_flat)
+    print('test_canonical_symplectic_form_and_inverse passed')
+
+def random_antisymmetric_operator_tensor (max_radius:float, operand_space_shape:typing.Tuple[int,...]) -> np.ndarray:
+    """
+    Uniform distribution on the ball of given radius in the space of antisymmetric matrices, under matrix norm.
+
+    Can only generate dtype=float for now.
+    """
+    operand_space_dim = vorpy.tensor.dimension_of_shape(operand_space_shape)
+
+    # Antisymmetric in dimension 0 or 1 is identically zero.
+    if operand_space_dim <= 1:
+        return np.zeros(operand_space_shape+operand_space_shape, dtype=float)
+
+    A_flat_shape = (operand_space_dim,operand_space_dim)
+    A_shape = operand_space_shape+operand_space_shape
+    while True:
+        A_flat = np.random.randn(*A_flat_shape)
+        # Project it into antisymmetric matrix space
+        A_flat = A_flat - A_flat.T
+        norm_A_flat = np.linalg.norm(A_flat)
+        # Only accept if the norm is big enough to divide by
+        if norm_A_flat > 1.0e-6:
+            break
+
+    radius = np.random.uniform(0.0, max_radius)
+    A_flat *= radius / norm_A_flat
+    return A_flat.reshape(A_shape)
+
+def test_random_antisymmetric_operator_tensor ():
+    max_radius = 5.0
+    # TODO: Figure out if (0,) is a valid case to test.
+    shape_v = [(), (1,), (2,), (2,1), (2,2), (2,3), (2,1,1), (2,3,2), (2,3,4), (2,1,1,1)]
+    for shape in shape_v:
+        for test_index in range(100):
+            A = random_antisymmetric_operator_tensor(max_radius, shape)
+            assert np.all(np.isfinite(A))
+            assert np.linalg.norm(A) <= max_radius
+            A_linop = vorpy.tensor.as_linear_operator(A)
+            error = np.max(np.abs(A_linop + A_linop.T))
+            assert error < 1.0e-15, f'error = {error}'
+    print('test_random_antisymmetric_operator_tensor passed')
+
+def random_rotation_operator_tensor (operand_space_shape:typing.Tuple[int,...]) -> np.ndarray:
+    """NOTE: Not a uniform distribution."""
+    if vorpy.tensor.dimension_of_shape(operand_space_shape) == 0:
+        raise Exception(f'invalid dimension for vector space having rotation')
+
+    A = random_antisymmetric_operator_tensor(np.pi, operand_space_shape)
+    return scipy.linalg.expm(vorpy.tensor.as_linear_operator(A)).reshape(A.shape)
+
+def test_random_rotation_operator_tensor ():
+    shape_v = [(), (1,), (2,), (2,1), (2,2), (2,3), (2,1,1), (2,3,2), (2,3,4), (2,1,1,1)]
+    for shape in shape_v:
+        dim = vorpy.tensor.dimension_of_shape(shape)
+        for test_index in range(100):
+            R = random_rotation_operator_tensor(shape)
+            assert np.all(np.isfinite(R))
+            assert np.max(np.abs(R)) <= 1.0
+            R_linop = vorpy.tensor.as_linear_operator(R)
+
+            error = np.max(np.abs(np.dot(R_linop.T, R_linop) - np.eye(dim, dtype=float)))
+            assert error < 1.0e-14, f'error = {error}'
+
+            error = np.max(np.abs(np.dot(R_linop, R_linop.T) - np.eye(dim, dtype=float)))
+            assert error < 1.0e-14, f'error = {error}'
+    print('test_random_rotation_operator_tensor passed')
+
+def random_invertible_operator_tensor (operand_space_shape:typing.Tuple[int,...]) -> np.ndarray:
+    operand_space_dim = vorpy.tensor.dimension_of_shape(operand_space_shape)
+    A_shape = operand_space_shape+operand_space_shape
+    while True:
+        A = np.reshape(np.random.randn(*A_shape), A_shape) # if A_shape is (), then randn returns a scalar.
+        A_linop = vorpy.tensor.as_linear_operator(A)
+        det_A_linop = np.linalg.det(A_linop)
+        if det_A_linop > 1.0e-6:
+            break
+    return A, det_A_linop
+
+def test_random_invertible_operator_tensor ():
+    shape_v = [(), (1,), (2,), (2,1), (2,2), (2,3), (2,1,1), (2,3,2), (2,3,4), (2,1,1,1)]
+    for shape in shape_v:
+        for test_index in range(100):
+            A, returned_det_A_linop = random_invertible_operator_tensor(shape)
+            assert np.all(np.isfinite(A))
+            A_linop = vorpy.tensor.as_linear_operator(A)
+            computed_det_A_linop = np.linalg.det(A_linop)
+            det_A_error = np.abs(computed_det_A_linop - returned_det_A_linop)
+            assert det_A_error < 1.0e-10, f'det_A_error = {det_A_error}'
+            assert returned_det_A_linop > 0.0, f'returned_det_A_linop = {returned_det_A_linop}'
+    print('test_random_invertible_operator_tensor passed')
+
+def random_symplectic_lie_algebra_operator_tensor (operand_space_shape:typing.Tuple[int,...]) -> np.ndarray:
+    """
+    An element of the Lie algebra of the symplectic group has form
+
+        [ P  Q   ]
+        [ R -P^T ]
+
+    where R and Q are symmetric.  It is assumed that the symplectic form is in Darboux coordinates, having the form
+
+        [ 0 -I ]
+        [ I  0 ]
+    """
+    vorpy.symplectic.validate_darboux_coordinates_shape_or_raise(operand_space_shape)
+    n = vorpy.tensor.dimension_of_shape(operand_space_shape[1:])
+    A_darboux = np.random.randn(2,n,2,n)
+    # Project into the Lie algebra
+    A_darboux[1,:,1,:] = -A_darboux[0,:,0,:].T
+    A_darboux[0,:,1,:] += A_darboux[0,:,1,:].T
+    A_darboux[0,:,1,:] *= 0.5
+    A_darboux[1,:,0,:] += A_darboux[1,:,0,:].T
+    A_darboux[1,:,0,:] *= 0.5
+    return A_darboux.reshape(operand_space_shape+operand_space_shape)
+
+def test_random_symplectic_lie_algebra_operator_tensor ():
+    shape_v = [(2,), (2,1), (2,2), (2,3), (2,1,1), (2,3,2), (2,3,4), (2,1,1,1)]
+    for shape in shape_v:
+        for test_index in range(100):
+            A = random_symplectic_lie_algebra_operator_tensor(shape)
+            A_linop = vorpy.tensor.as_linear_operator(A)
+            omega = vorpy.symplectic.canonical_symplectic_form(shape, dtype=float)
+            omega_linop = vorpy.tensor.as_linear_operator(omega)
+            condition = np.dot(omega_linop, A_linop) + np.dot(A_linop.T, omega_linop)
+            condition_error = np.max(np.abs(condition))
+            assert condition_error < 1.0e-16, f'condition_error = {condition_error}'
+
+    print('test_random_symplectic_lie_algebra_operator_tensor passed')
+
+def random_symplectomorphism_tensor (operand_space_shape:typing.Tuple[int,...]) -> np.ndarray:
+    # The Lie group exponential for Sp(2*n, R) is not surjective, but composing two exponentials does reach all
+    # elements of Sp(2*n, R).  See https://en.wikipedia.org/wiki/Symplectic_group#Sp(2n,_R)
+    X = random_symplectic_lie_algebra_operator_tensor(operand_space_shape)
+    Y = random_symplectic_lie_algebra_operator_tensor(operand_space_shape)
+    X_linop = vorpy.tensor.as_linear_operator(X)
+    Y_linop = vorpy.tensor.as_linear_operator(Y)
+    S_linop = np.dot(scipy.linalg.expm(X_linop), scipy.linalg.expm(Y_linop))
+    return S_linop.reshape(operand_space_shape+operand_space_shape)
+
+def test_random_symplectomorphism_tensor ():
+    shape_v = [(2,), (2,1), (2,2), (2,3), (2,1,1), (2,3,2), (2,3,4), (2,1,1,1)]
+    for shape in shape_v:
+        for test_index in range(100):
+            S = random_symplectomorphism_tensor(shape)
+            S_linop = vorpy.tensor.as_linear_operator(S)
+            omega = vorpy.symplectic.canonical_symplectic_form(shape, dtype=float)
+            omega_linop = vorpy.tensor.as_linear_operator(omega)
+            condition = np.einsum('ij,ik,jl', omega_linop, S_linop, S_linop) - omega_linop
+            condition_error = np.max(np.abs(condition))
+            assert condition_error < 1.0e-7, f'condition_error = {condition_error}'
+
+    print('test_random_symplectomorphism_tensor passed')
+
+def test_symplectomorphicity_condition ():
+    np.random.seed(42)
+
+    shape_v = [(2,), (2,1), (2,3), (2,2), (2,1,1), (2,3,2), (2,3,4), (2,1,1,1)]
+
+    # Identity tensor, negative identity tensor, symplectic form, and symplectic form inverse should all
+    # be symplectomorphisms.
+    for shape in shape_v:
+        I = vorpy.tensor.identity_tensor(shape, dtype=int)
+        assert np.all(vorpy.symplectic.symplectomorphicity_condition(I, dtype=int) == 0)
+
+        I[...] = -I
+        assert np.all(vorpy.symplectic.symplectomorphicity_condition(I, dtype=int) == 0)
+
+        omega = vorpy.symplectic.canonical_symplectic_form(shape, dtype=int)
+        assert np.all(vorpy.symplectic.symplectomorphicity_condition(omega, dtype=int) == 0)
+
+        omega_inv = vorpy.symplectic.canonical_symplectic_form_inverse(shape, dtype=int)
+        assert np.all(vorpy.symplectic.symplectomorphicity_condition(omega_inv, dtype=int) == 0)
+
+    def rotation_matrix (angle:float) -> np.ndarray:
+        return np.array([
+            [ np.cos(angle), np.sin(angle)],
+            [-np.sin(angle), np.cos(angle)],
+        ])
+
+    # Rotations in 2d phase space should be symplectomorphisms.
+    for angle in np.linspace(0.0, np.pi, 100):
+        R = rotation_matrix(angle)
+        assert np.max(np.abs(vorpy.symplectic.symplectomorphicity_condition(R, dtype=float))) < 1.0e-15
+
+    # Area-preserving transformations in 2d phase space should be symplectomorphisms.
+    for scalar in np.logspace(-3, 3, 10):
+        D = np.array([[scalar, 0.0], [0.0, 1.0/scalar]])
+        for angle_U in np.linspace(0.0, np.pi, 10):
+            U = rotation_matrix(angle_U)
+            for angle_V in np.linspace(0.0, np.pi, 10):
+                V = rotation_matrix(angle_V)
+                A = np.einsum('ij,jk,kl', U, D, V)
+                assert np.max(np.abs(vorpy.symplectic.symplectomorphicity_condition(A, dtype=float))) < 1.0e-10
+
+    # Rotations in configuration space (with action induced on phase space) should be symplectomorphisms.
+    for test_index in range(100):
+        for shape in shape_v:
+            dim = vorpy.tensor.dimension_of_shape(shape)
+            assert dim % 2 == 0
+
+            config_shape = shape[1:]
+            config_R = random_rotation_operator_tensor(config_shape)
+            config_R_linop = vorpy.tensor.as_linear_operator(config_R)
+            assert np.max(np.abs(np.dot(config_R_linop.T, config_R_linop) - np.eye(dim//2, dtype=float))) < 1.0e-10
+            phase_R = np.einsum('ik,jl', np.eye(2, dtype=float), config_R_linop).reshape(shape+shape)
+            phase_R_linop = vorpy.tensor.as_linear_operator(phase_R)
+            phase_R_error = np.max(np.abs(np.dot(phase_R_linop.T, phase_R_linop) - np.eye(dim, dtype=float)))
+            assert phase_R_error < 1.0e-10, f'phase_R_error = {phase_R_error}'
+
+            sympl_error = np.max(np.abs(vorpy.symplectic.symplectomorphicity_condition(phase_R, dtype=float)))
+            assert sympl_error < 1.0e-10, f'test_index = {test_index}, sympl_error = {sympl_error}; shape = {shape}, phase_R:\n{phase_R.tolist()}'
+
+    # Symplectomorphisms should be symplectomorphisms.
+    #sympl_error_v = []
+    for test_index in range(20):
+        #print('.', end='', flush=True)
+        for shape in shape_v:
+            dim = vorpy.tensor.dimension_of_shape(shape)
+            assert dim % 2 == 0
+
+            S = random_symplectomorphism_tensor(shape)
+            sympl_error = np.max(np.abs(vorpy.symplectic.symplectomorphicity_condition(S, dtype=float)))
+            #sympl_error_v.append(sympl_error)
+            assert sympl_error < 3.1e-9, f'test_index = {test_index}, sympl_error = {sympl_error}; shape = {shape}, phase_R:\n{phase_R.tolist()}'
+    #print()
+    #print(f'max sympl error = {np.max(sympl_error_v)}')
+
+    print('test_symplectomorphicity_condition passed')
+
+# TODO: other tests
 
 def phase_space_coordinates ():
     return np.array((
@@ -189,7 +496,7 @@ class J__(FancyFunction):
         # Always evaluate
         return value
 
-def P_x__test ():
+def test_P_x ():
     # TODO: Deprecate this, it's just to test how subclassing sp.Function works.
 
     qp = phase_space_coordinates()
@@ -261,7 +568,7 @@ def H (qp):
 
     return K(qp) + U(qp)
 
-def H__conservation_test ():
+def test_H_conservation ():
     """
     This test verifies that H is conserved along the flow of H (just a sanity check, this fact
     is easily provable in general).
@@ -273,10 +580,10 @@ def H__conservation_test ():
     X_H = vorpy.symplectic.symplectic_gradient_of(H_qp, qp)
 
     # Sanity check
-    X_H__H = vorpy.manifold.apply_vector_field_to_function(X_H, H_qp, qp)
+    X_H__H = vorpy.manifold.directional_derivative(X_H, H_qp, qp)
     if X_H__H != 0:
         raise ValueError(f'Expected X_H(H) == 0 but instead got {X_H__H}')
-    print('H__conservation_test passed')
+    print('test_H_conservation passed')
 
 def p_theta (qp):
     """p_theta is the angular momentum for the system and is conserved along solutions."""
@@ -286,7 +593,7 @@ def p_theta (qp):
 
     return x*p_y - y*p_x
 
-def p_theta__conservation_test ():
+def test_p_theta_conservation ():
     """
     This test verifies that p_theta is conserved along the flow of H.
     """
@@ -295,10 +602,10 @@ def p_theta__conservation_test ():
     X_H = vorpy.symplectic.symplectic_gradient_of(H(qp), qp)
 
     # Sanity check
-    X_H__p_theta = vorpy.manifold.apply_vector_field_to_function(X_H, p_theta(qp), qp)
+    X_H__p_theta = vorpy.manifold.directional_derivative(X_H, p_theta(qp), qp)
     if X_H__p_theta != 0:
         raise ValueError(f'Expected X_H(p_theta) == 0 but instead got {X_H__p_theta}')
-    print('p_theta__conservation_test passed')
+    print('test_p_theta_conservation passed')
 
 def J (X):
     """J can be thought of as "dilational momentum" for the system, and is conserved along solutions when H = 0."""
@@ -308,7 +615,7 @@ def J (X):
 
     return x*p_x + y*p_y + 2*z*p_z
 
-def J__restricted_conservation_test ():
+def test_J_restricted_conservation ():
     """This test verifies that J is conserved along the flow of H if restricted to the H = 0 submanifold."""
 
     qp = phase_space_coordinates()
@@ -316,7 +623,7 @@ def J__restricted_conservation_test ():
     X_H = vorpy.symplectic.symplectic_gradient_of(H_qp, qp)
 
     J_qp = J(qp)
-    X_H__J = vorpy.manifold.apply_vector_field_to_function(X_H, J_qp, qp)
+    X_H__J = vorpy.manifold.directional_derivative(X_H, J_qp, qp)
 
     p_z = qp[1,2]
 
@@ -336,9 +643,9 @@ def J__restricted_conservation_test ():
         if X_H__J__restricted != 0:
             raise ValueError(f'Expected X_H__J__restricted == 0 for solution_index = {solution_index}, but actual value was {X_H__J__restricted}')
 
-    print('J__restricted_conservation_test passed')
+    print('test_J_restricted_conservation passed')
 
-def J__test ():
+def test_J ():
     """This test verifies that dJ/dt = 2*H."""
 
     qp              = phase_space_coordinates()
@@ -359,34 +666,34 @@ def J__test ():
     # Because X_H gives the vector field defining the time derivative of a solution to the dynamics,
     # it follows that X_H applied to J is equal to dJ/dt (where J(t) is J(qp(t)), where qp(t) is a
     # solution to Hamilton's equations).
-    X_H__J          = vorpy.manifold.apply_vector_field_to_function(X_H, J_qp, qp)
-    #print(f'J__test; X_H__J = {X_H__J}')
-    #print(f'J__test; 2*H = {sp.expand(2*H_qp)}')
+    X_H__J          = vorpy.manifold.directional_derivative(X_H, J_qp, qp)
+    #print(f'test_J; X_H__J = {X_H__J}')
+    #print(f'test_J; 2*H = {sp.expand(2*H_qp)}')
     actual_value    = X_H__J - sp.expand(2*H_qp)
-    #print(f'J__test; X_H__J - 2*H = {actual_value}')
+    #print(f'test_J; X_H__J - 2*H = {actual_value}')
 
     # Annoyingly, this doesn't simplify to 0 automatically, so some manual manipulation has to be done.
 
     # Manipulate the expression to ensure the P_x and P_y terms cancel
     actual_value    = sp.collect(actual_value, [P_x_, P_y_])
-    #print(f'J__test; after collect P_x, P_y: X_H__J - 2*H = {actual_value}')
+    #print(f'test_J; after collect P_x, P_y: X_H__J - 2*H = {actual_value}')
     actual_value    = sp.Subs(actual_value, [P_x_, P_y_], [P_x_._expanded(), P_y_._expanded()]).doit()
-    #print(f'J__test; after subs P_x, P_y: X_H__J - 2*H = {actual_value}')
+    #print(f'test_J; after subs P_x, P_y: X_H__J - 2*H = {actual_value}')
 
     # Manipulate the expression to ensure the mu terms cancel
     actual_value    = sp.factor_terms(actual_value, clear=True, fraction=True)
-    #print(f'J__test; after factor_terms: X_H__J - 2*H = {actual_value}')
+    #print(f'test_J; after factor_terms: X_H__J - 2*H = {actual_value}')
     actual_value    = sp.collect(actual_value, [r_squared_])
-    #print(f'J__test; after collect r_squared_: X_H__J - 2*H = {actual_value}')
+    #print(f'test_J; after collect r_squared_: X_H__J - 2*H = {actual_value}')
     actual_value    = sp.Subs(actual_value, [r_squared_._expanded()], [r_squared_]).doit()
-    #print(f'J__test; after subs r_squared: X_H__J - 2*H = {actual_value}')
+    #print(f'test_J; after subs r_squared: X_H__J - 2*H = {actual_value}')
     actual_value    = sp.Subs(actual_value, [mu_._expanded()], [mu_]).doit()
-    #print(f'J__test; after subs mu: X_H__J - 2*H = {actual_value}')
+    #print(f'test_J; after subs mu: X_H__J - 2*H = {actual_value}')
 
     if actual_value != 0:
         raise ValueError(f'Expected X_H__J - 2*H == 0, but actual value was {actual_value}')
 
-    print('J__test passed')
+    print('test_J passed')
 
 def A (qp):
     """
@@ -410,7 +717,7 @@ def V (qp):
     """
     return vorpy.symplectic.symplectic_dual_of_covector_field(A(qp))
 
-def V__test ():
+def test_V ():
     qp = phase_space_coordinates()
 
     x,y,z       = qp[0,:]
@@ -424,9 +731,9 @@ def V__test ():
     error = actual_value - expected_value
     if not np.all(error == 0):
         raise ValueError(f'Expected V = {expected_value} but it was actually {actual_value}')
-    print('V__test passed')
+    print('test_V passed')
 
-def lie_bracket_of__X_H__V__test ():
+def test_lie_bracket_of__X_H__V ():
     qp = phase_space_coordinates()
     #print(f'H = {H(qp)}')
     #print(f'X_H = {vorpy.symplectic.symplectic_gradient_of(H(qp), qp)}')
@@ -449,4 +756,25 @@ def lie_bracket_of__X_H__V__test ():
     if not np.all(lb__X_H__V == expected__lb__X_H__V):
         raise ValueError(f'Expected [X_H,V] = {expected__lb__X_H__V} but it was actually {lb__X_H__V}')
 
-    print('lie_bracket_of__X_H__V__test passed')
+    print('test_lie_bracket_of__X_H__V passed')
+
+if __name__ == '__main__':
+    # Just run the tests in this module
+    # TODO: Figure out how to do this automatically with nosetest
+    test_validate_darboux_coordinates_quantity_or_raise()
+    test_canonical_symplectic_form_abstract_and_inverse()
+    test_canonical_symplectic_form_and_inverse()
+    test_random_antisymmetric_operator_tensor()
+    test_random_rotation_operator_tensor()
+    test_random_invertible_operator_tensor()
+    test_random_symplectic_lie_algebra_operator_tensor()
+    test_random_symplectomorphism_tensor()
+    test_symplectomorphicity_condition()
+    if False:
+        test_P_x()
+        test_H_conservation()
+        test_p_theta_conservation()
+        test_J_restricted_conservation()
+        test_J()
+        test_V()
+        test_lie_bracket_of__X_H__V()

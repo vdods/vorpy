@@ -5,6 +5,25 @@ import traceback
 import vorpy.symbolic
 import vorpy.tensor
 
+def test_diagonal_tensor ():
+    np.random.seed(42)
+
+    shape_v = [(), (1,), (2,), (3,), (4,), (1,1), (2,1), (1,2), (2,2), (1,1,1), (1,2,1), (3,2,4), (2,2,2,2)]
+    for shape in shape_v:
+        diag_t = np.random.randn(*shape)
+        D = vorpy.tensor.diagonal_tensor(diag_t)
+        print(f'diag_t:\n{diag_t}')
+        print(f'D:\n{D}')
+        print()
+        assert D.shape == shape+shape
+        dim = vorpy.tensor.dimension(diag_t)
+        X = np.random.randn(*shape)
+        Y = np.dot(np.reshape(D, (dim,dim)), np.reshape(X, (dim,))).reshape(shape)
+        expected_Y = diag_t*X
+        assert np.all(expected_Y == Y)
+
+    print('test_diagonal_tensor passed')
+
 def test_contract ():
     # Define a bunch of tensors to use in the tests
     x = sp.symbols('x')
@@ -213,7 +232,7 @@ def test_contract ():
     if unit_test_count > 0:
         print('Summary: {0} unit tests, {1} passed, {2} failed, failure rate was {3}%'.format(unit_test_count, pass_count, fail_count, float(fail_count)*100.0/unit_test_count))
 
-def tensor_power_of_vector__test ():
+def test_tensor_power_of_vector ():
     V = np.array((sp.var('x'), sp.var('y'), sp.var('z')))
 
     #print(f'V = {V}')
@@ -254,4 +273,9 @@ def tensor_power_of_vector__test ():
     if not np.all(expected_value == actual_value):
         raise FancyException(f'For power {power}, expected {expected_value} but actual value was {actual_value}')
 
-    print('tensor_power_of_vector__test passed')
+    print('test_tensor_power_of_vector passed')
+
+if __name__ == '__main__':
+    test_diagonal_tensor()
+    test_contract()
+    test_tensor_power_of_vector()
