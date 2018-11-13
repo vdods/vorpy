@@ -82,17 +82,18 @@ class GlobalErrorSchedule:
     def global_error_band (self) -> RealInterval:
         return self.__global_error_band
 
-    def global_error_target (self) -> float:
-        return self.__global_error_target
-
-    def allowable_error_band_at_time (self, t:float, t_duration:float) -> RealInterval:
+    def allowable_local_error_band (self, t_step:float, t_duration:float) -> RealInterval:
         """
-        Based on the global error schedule of attempting to attain a global error of the geometric
-        mean of error_band inf and sup, this returns the error band that is allowed after a
-        particular time.
+        Quantifies the allowable error accumulation rate, as a function of rate of passage of time.
+        The allowable error accumulation rate is expressed as a real interval, defining the band of
+        allowable values.
         """
-        proportion = t / t_duration
-        return RealInterval(self.__global_error_band.inf*proportion, self.__global_error_target*proportion)
+        proportion = t_step / t_duration
+        # Take the global error band supremum down by a bit, so that if it overshoots a little, it doesn't
+        # fail the global error bound condition.
+        padding_ratio = 0.1 # Somewhat arbitrary.
+        padded_global_error_band_sup = self.__global_error_band.sup * (1.0-padding_ratio)
+        return RealInterval(self.__global_error_band.inf*proportion, padded_global_error_band_sup*proportion)
 
 # TODO: Come up with better name for this
 class Control:
@@ -151,8 +152,10 @@ class IntegrateVectorFieldResults:
         *,
         t_v:np.ndarray,
         y_t:np.ndarray,
-        error_vd:np.ndarray,
+        global_error_vd:np.ndarray,
+        local_error_vd:np.ndarray,
         t_step_v:np.ndarray,
+        t_step_iteration_count_v:np.ndarray,
         failure_explanation_o:typing.Optional[str],
     ) -> None:
         # Check the identity claimed for t_v and t_step_v.
@@ -163,22 +166,28 @@ class IntegrateVectorFieldResults:
             #print(f'max naive identity failure: {np.max(np.abs(np.diff(t_v[:-1]) - t_step_v[:-1]))}')
 
         # Sequence of time values, indexed as t_v[i].
-        self.t_v                    = t_v
+        self.t_v                        = t_v
         # Sequence (tensor) of parameter values, indexed as y_t[i,J], where i is the time index and
         # is the [multi]index for the parameter type (could be scalar, vector, or tensor).
-        self.y_t                    = y_t
-        # Dictionary of error sequences mapped to their names.  Each error sequence is indexed as error_v[i],
-        # where i is the index for t_v.
-        self.error_vd               = error_vd
+        self.y_t                        = y_t
+        # Dictionary of global error sequences mapped to their names.  Each global error sequence is indexed as
+        # global_error_v[i], where i is the index for t_v.
+        self.global_error_vd            = global_error_vd
+        # Dictionary of local error sequences mapped to their names.  Each local error sequence is indexed as
+        # local_error_v[i], where i is the index for t_v.
+        self.local_error_vd             = local_error_vd
         # Sequence of timestep values, indexed as t_step_v[i], though len(t_step_v) == len(t_v)-1.  Note that
         # this should satisfy t_v[:-1]+t_step_v == t_v[1:] (since each time value is defined as the previous
         # time value plus the current time step), but it will NOT satisfy t_v[1:]-t_v[:-1] == t_step_v due to
-        # numerical roundoff error.
-        self.t_step_v               = t_step_v
+        # numerical roundoff error.  Note that len(t_step_v) == len(t_v) - 1
+        self.t_step_v                   = t_step_v
+        # Number of iterations it took to compute an acceptable t_step value.  Indexed as t_step_iteration_count_v[i],
+        # where i is the index for t_v.  Note that len(t_step_iteration_count_v) == len(t_v) - 1.
+        self.t_step_iteration_count_v   = t_step_iteration_count_v
         # If failure_explanation_o is None, then the integration is understood to have succeeded.
-        self.succeeded              = failure_explanation_o is None
+        self.succeeded                  = failure_explanation_o is None
         # Store the [optional] failure explanation.
-        self.failure_explanation_o  = failure_explanation_o
+        self.failure_explanation_o      = failure_explanation_o
 
 class SalvagedResultsException(Exception):
     pass
@@ -212,21 +221,41 @@ def integrate_vector_field (
         raise ValueError('controlled_quantity_d should not contain the reserved key \"squared LTEE\" but it does')
 
     # These data structures are used to accumulate the return values
-    t_v         : typing.List[float]                    = []
-    y_tv        : typing.List[np.ndarray]               = []
-    error_vd    : typing.Dict[str,typing.List[float]]   = {name:[] for name in controlled_quantity_d}
-    error_vd[ControlledSquaredLTEE.NAME]                = []
-    t_step_v    : typing.List[float]                    = []
+    t_v                         : typing.List[float]                    = []
+    y_tv                        : typing.List[np.ndarray]               = []
+    global_error_vd             : typing.Dict[str,typing.List[float]]   = {name:[] for name in controlled_quantity_d}
+    global_error_vd[ControlledSquaredLTEE.NAME]                         = []
+    local_error_vd              : typing.Dict[str,typing.List[float]]   = {name:[] for name in controlled_quantity_d}
+    local_error_vd[ControlledSquaredLTEE.NAME]                          = []
+    t_step_v                    : typing.List[float]                    = []
+    t_step_iteration_count_v    : typing.List[int]                      = []
 
-    def add_sample (t:float, y:np.ndarray, error_d:typing.Dict[str,float], dt_o:typing.Optional[float]) -> None:
-        if error_d.keys() != error_vd.keys():
-            raise TypeError(f'expected error_d to have keys {error_vd.keys()} but it had keys {error_d.keys()}')
+    def add_sample (
+        *,
+        t:float,
+        y:np.ndarray,
+        global_error_d:typing.Dict[str,float],
+        local_error_d:typing.Dict[str,float],
+        t_step_o:typing.Optional[float],
+        t_step_iteration_count_o:typing.Optional[int],
+    ) -> None:
+        if global_error_d.keys() != global_error_vd.keys():
+            raise TypeError(f'expected global_error_d to have keys {global_error_vd.keys()} but it had keys {global_error_d.keys()}')
+        if local_error_d.keys() != local_error_vd.keys():
+            raise TypeError(f'expected local_error_d to have keys {local_error_vd.keys()} but it had keys {local_error_d.keys()}')
+        if (t_step_o is None) != (t_step_iteration_count_o is None):
+            raise TypeError(f't_step_o and t_step_iteration_count_o must either both be None or both not be None')
+
         t_v.append(t)
         y_tv.append(np.copy(y))
-        for name,error in error_d.items():
-            error_vd[name].append(error)
-        if dt_o is not None:
-            t_step_v.append(dt_o)
+        for name,global_error in global_error_d.items():
+            global_error_vd[name].append(global_error)
+        for name,local_error in local_error_d.items():
+            local_error_vd[name].append(local_error)
+        if t_step_o is not None:
+            t_step_v.append(t_step_o)
+        if t_step_iteration_count_o is not None:
+            t_step_iteration_count_v.append(t_step_iteration_count_o)
 
     def make_error_d (controlled_quantity_error_d:typing.Dict[str,float], sq_ltee:float) -> typing.Dict[str,float]:
         if controlled_quantity_error_d.keys() != controlled_quantity_d.keys():
@@ -236,7 +265,14 @@ def integrate_vector_field (
         return error_d
 
     # No t_step for first sample
-    add_sample(t_initial, y_initial, make_error_d({name:0.0 for name in controlled_quantity_d}, 0.0), None)
+    add_sample(
+        t=t_initial,
+        y=y_initial,
+        global_error_d=make_error_d({name:0.0 for name in controlled_quantity_d}, 0.0),
+        local_error_d=make_error_d({name:0.0 for name in controlled_quantity_d}, 0.0),
+        t_step_o=None,
+        t_step_iteration_count_o=None,
+    )
 
     # Must use an integrator that has local truncation error estimation.
     integrator = vorpy.integration.rungekutta.RungeKuttaFehlberg_4_5(vector_field=vector_field, parameter_shape=y_initial.shape)
@@ -289,93 +325,129 @@ def integrate_vector_field (
                 t_step_iteration_index_limit = 1000
                 log_t_step_message(f'---- t_step-finding iteration {t_step_iteration_index}')
                 if integrator.t_now + t_step == integrator.t_now:
-                    failure_explanation_o = 't_step too small (GLOBAL ERROR SCHEDULE NOT AGGRESSIVE ENOUGH)'
-                    log_t_step_message('t_step became too small (GLOBAL ERROR SCHEDULE NOT AGGRESSIVE ENOUGH); breaking')
+                    failure_explanation_o = f't_step became too small (t_now = {integrator.t_now:e}, t_step = {t_step:e})'
+                    log_t_step_message('t_step became too small; breaking')
                     t_step_is_bad = True
                     break
                 if t_step_iteration_index > t_step_iteration_index_limit:
-                    failure_explanation_o = f't_step_iteration_index exceeded limit of {t_step_iteration_index_limit} (required too many t_step values to succeed at a single time step)'
+                    failure_explanation_o = f't_step_iteration_index exceeded limit of {t_step_iteration_index_limit}'
                     log_t_step_message(f't_step_iteration_index exceeded limit; breaking')
                     t_step_is_bad = True
                     break
 
                 log_t_step_message(f't_step_iteration_index  {t_step_iteration_index}; t_step = {t_step}')
 
-                # Make sure t_step wouldn't exceed t_final
-                if t_step > t_final - integrator.t_now:
+                # Handle the case where t_final is reached (or surpassed)
+                if integrator.t_now + t_step >= t_final:
+                    ## Make sure t_step wouldn't exceed t_final
+                    #if t_step > t_final - integrator.t_now:
                     t_step = t_final - integrator.t_now
-                    assert integrator.t_now + t_step >= t_final, 't_step needs to be adjusted more carefully due to roundoff error in the subtraction'
+                    assert integrator.t_now + t_step == t_final, 't_step needs to be adjusted more carefully due to roundoff error in the subtraction'
+                    break_after_computing_step = True
+
                 # Run the integrator one step
                 integrator.step(t_step)
 
                 # Analyze the various error band excesses
-                error_d = make_error_d(
+                global_error_d = make_error_d(
                     {
                         name:cq.error(integrator.t_next, integrator.y_next)
                         for name,cq in controlled_quantity_d.items()
                     },
-                    integrator.ltee_squared
+                    integrator.ltee_squared # NOTE: This is not a global error
                 )
-                allowable_error_band_d = {
-                    name:c.global_error_schedule().allowable_error_band_at_time(integrator.t_next, t_duration)
+                # TODO/NOTE: This is actually local error (though error accumulation rate is a fair name for it too)
+                # TEMP EXPERIMENT: This max(0, ...) expression allows the error to decrease without penalty (since the
+                # controlled quantities are posed as global error quantifiers, instead of purely local, so we do have
+                # an absolute reference).
+                local_error_d = make_error_d(
+                    {
+                        #name:np.abs(cq.error(integrator.t_next, integrator.y_next) - cq.error(integrator.t_now, integrator.y_now))
+                        name:np.max((0.0, cq.error(integrator.t_next, integrator.y_next) - cq.error(integrator.t_now, integrator.y_now)))
+                        for name,cq in controlled_quantity_d.items()
+                    },
+                    integrator.ltee_squared # This is not quite right, but who cares for now.
+                )
+                allowable_local_error_band_d = {
+                    name:c.global_error_schedule().allowable_local_error_band(t_step, t_duration)
                     for name,c in control_d.items()
                 }
-                error_band_membership_d = {
-                    name:allowable_error_band.membership(error_d[name])
-                    for name,allowable_error_band in allowable_error_band_d.items()
+                local_error_band_membership_d = {
+                    name:allowable_local_error_band.membership(local_error_d[name])
+                    for name,allowable_local_error_band in allowable_local_error_band_d.items()
                 }
-                log_t_step_message(f'error_d = {error_d}')
-                log_t_step_message(f'allowable_error_band_d = {allowable_error_band_d}')
-                log_t_step_message(f'error_band_membership_d = {error_band_membership_d}')
+                log_t_step_message(f'global_error_d = {global_error_d}')
+                log_t_step_message(f'local_error_d = {local_error_d}')
+                log_t_step_message(f'allowable_local_error_band_d = {allowable_local_error_band_d}')
+                log_t_step_message(f'local_error_band_membership_d = {local_error_band_membership_d}')
 
                 if break_after_computing_step:
                     break
 
                 if can_go_in_direction_o == 0:
                     # If any bands are exceeded ABOVE, then set can_go_in_direction_o to a negative value
-                    if RealInterval.Membership.ABOVE in error_band_membership_d.values():
+                    if RealInterval.Membership.ABOVE in local_error_band_membership_d.values():
                         can_go_in_direction_o = -1
                     # Otherwise if any bands are exceeded BELOW, then set can_go_in_direction_o to a positive value
-                    elif RealInterval.Membership.BELOW in error_band_membership_d.values():
+                    elif RealInterval.Membership.BELOW in local_error_band_membership_d.values():
                         can_go_in_direction_o = 1
                     # Otherwise there's no problem, so no update is necessary, so break out of this
                     # t_step-determining loop.
                     else:
                         break
 
-                #dt_adjustment_power = 1/2
-                dt_adjustment_power = 1/4
+                #t_step_adjustment_power = 1/2
+                t_step_adjustment_power = 1/4
 
                 log_t_step_message(f'can_go_in_direction_o was set to {can_go_in_direction_o}')
                 assert can_go_in_direction_o != 0
                 if can_go_in_direction_o < 0:
-                    if RealInterval.Membership.ABOVE in error_band_membership_d.values():
-                        t_step *= 0.5**dt_adjustment_power
+                    if RealInterval.Membership.ABOVE in local_error_band_membership_d.values():
+                        t_step *= 0.5**t_step_adjustment_power
                         log_t_step_message(f'decreasing t_step to {t_step}')
                     else:
                         break
                 else:
                     assert can_go_in_direction_o > 0
                     # ABOVE is unacceptable, so if that occured, then back off one and use it.
-                    if RealInterval.Membership.ABOVE in error_band_membership_d.values():
-                        t_step *= 0.5**dt_adjustment_power
+                    if RealInterval.Membership.ABOVE in local_error_band_membership_d.values():
+                        t_step *= 0.5**t_step_adjustment_power
                         break_after_computing_step = True
                         log_t_step_message(f'decreasing t_step to {t_step} and using that one')
-                    elif RealInterval.Membership.BELOW in error_band_membership_d.values():
-                        t_step *= 2.0**dt_adjustment_power
+                    # TODO: Should only do this for truncation error, not for conserved quantities
+                    elif RealInterval.Membership.BELOW in local_error_band_membership_d.values():
+                        t_step *= 2.0**t_step_adjustment_power
                         log_t_step_message(f'increasing t_step to {t_step}')
                     else:
                         break
 
                 t_step_iteration_index += 1
 
+            # Store the sample for the return value(s).  TODO: Maybe add a "is bad" boolean.
+            add_sample(
+                t=integrator.t_next,
+                y=integrator.y_next,
+                global_error_d=global_error_d,
+                local_error_d=local_error_d,
+                t_step_o=t_step,
+                t_step_iteration_count_o=t_step_iteration_index,
+            )
+
             if t_step_is_bad:
                 break
 
-            log_message(f't = {integrator.t_now}; using t_step {t_step}, error_d = {error_d}')
+            #log_message(f't = {integrator.t_now}; using t_step {t_step}, error_d = {error_d}')
+            log_message(f't = {integrator.t_now}; using t_step {t_step}, local_error_d = {local_error_d}')
 
-            # Store the sample for the return value(s)
-            add_sample(integrator.t_next, integrator.y_next, error_d, t_step)
+            ## Store the sample for the return value(s)
+            #add_sample(
+                #t=integrator.t_next,
+                #y=integrator.y_next,
+                #global_error_d=global_error_d,
+                #local_error_d=local_error_d,
+                #t_step_o=t_step,
+                #t_step_iteration_count_o=t_step_iteration_index,
+            #)
             # Set t_now, y_now to be t_next, y_next so we can compute the next step.
             log_message(f'integrator.get_outputs = {integrator.get_outputs()}')
             integrator.set_inputs(*integrator.get_outputs())
@@ -395,8 +467,10 @@ def integrate_vector_field (
     return IntegrateVectorFieldResults(
         t_v=np.array(t_v),
         y_t=np.array(y_tv),
-        error_vd={name:np.array(error_v) for name,error_v in error_vd.items()},
+        global_error_vd={name:np.array(global_error_v) for name,global_error_v in global_error_vd.items()},
+        local_error_vd={name:np.array(local_error_v) for name,local_error_v in local_error_vd.items()},
         t_step_v=np.array(t_step_v),
+        t_step_iteration_count_v=t_step_iteration_count_v,
         failure_explanation_o=failure_explanation_o,
     )
 
@@ -519,21 +593,18 @@ if __name__ == '__main__':
                 axis.set_title('H abs error')
                 axis.semilogy(results.t_v, results.error_vd['H abs error'], '.')
                 axis.axhline(H_cq.global_error_schedule().global_error_band().inf, color='green')
-                axis.axhline(H_cq.global_error_schedule().global_error_target(), color='blue')
                 axis.axhline(H_cq.global_error_schedule().global_error_band().sup, color='red')
 
                 axis = axis_vv[1][1]
                 axis.set_title('p_theta abs error')
                 axis.semilogy(results.t_v, results.error_vd['p_theta abs error'], '.')
                 axis.axhline(p_theta_cq.global_error_schedule().global_error_band().inf, color='green')
-                axis.axhline(p_theta_cq.global_error_schedule().global_error_target(), color='blue')
                 axis.axhline(p_theta_cq.global_error_schedule().global_error_band().sup, color='red')
 
                 axis = axis_vv[0][2]
                 axis.set_title(ControlledSquaredLTEE.NAME)
                 axis.semilogy(results.t_v, results.error_vd[ControlledSquaredLTEE.NAME], '.')
                 axis.axhline(controlled_sq_ltee.global_error_schedule().global_error_band().inf, color='green')
-                axis.axhline(controlled_sq_ltee.global_error_schedule().global_error_target(), color='blue')
                 axis.axhline(controlled_sq_ltee.global_error_schedule().global_error_band().sup, color='red')
 
                 axis = axis_vv[0][3]
@@ -650,7 +721,7 @@ if __name__ == '__main__':
         t_initial = 0.0
         qp_initial = np.array([
             [[-1.0,0.0],[0.0,1.0],[1.0,0.0]],
-            [[ 0.0,-0.3],[-0.3,0.0],[0.1,0.2]], # zero momentum to begin with
+            [[ 0.0,-0.3],[-0.8,0.2],[0.1,-0.2]],
         ])
         H_initial = H_fast(qp_initial)
         p_theta_initial = p_theta_fast(qp_initial)
@@ -729,7 +800,7 @@ if __name__ == '__main__':
                 fig,axis_vv = plt.subplots(row_count, col_count, squeeze=False, figsize=(size*col_count,size*row_count))
 
                 axis = axis_vv[0][0]
-                axis.set_title('position (bodies 0,1,2 are R,G,B resp.)')
+                axis.set_title(f'position (bodies 0,1,2 are R,G,B resp.)\nresults.succeeded = {results.succeeded}\nresults.failure_explanation_o = {results.failure_explanation_o}')
                 axis.set_aspect('equal')
                 axis.plot(results.y_t[:,0,0,0], results.y_t[:,0,0,1], color='red')
                 axis.plot(results.y_t[:,0,1,0], results.y_t[:,0,1,1], color='green')
@@ -754,24 +825,24 @@ if __name__ == '__main__':
                 ##axis.plot(results.t_v, results.y_t[:,0,1], '.')
 
                 axis = axis_vv[0][1]
-                axis.set_title('H abs error')
-                axis.semilogy(results.t_v, results.error_vd['H abs error'], '.')
+                axis.set_title('H abs error (global:blue, local:green)')
+                axis.semilogy(results.t_v, results.global_error_vd['H abs error'], '.', color='blue')
+                axis.semilogy(results.t_v, results.local_error_vd['H abs error'], '.', color='green')
                 axis.axhline(H_cq.global_error_schedule().global_error_band().inf, color='green')
-                axis.axhline(H_cq.global_error_schedule().global_error_target(), color='blue')
                 axis.axhline(H_cq.global_error_schedule().global_error_band().sup, color='red')
 
                 axis = axis_vv[1][1]
-                axis.set_title('p_theta abs error')
-                axis.semilogy(results.t_v, results.error_vd['p_theta abs error'], '.')
+                axis.set_title('p_theta abs error (global:blue, local:green)')
+                axis.semilogy(results.t_v, results.global_error_vd['p_theta abs error'], '.', color='blue')
+                axis.semilogy(results.t_v, results.local_error_vd['p_theta abs error'], '.', color='green')
                 axis.axhline(p_theta_cq.global_error_schedule().global_error_band().inf, color='green')
-                axis.axhline(p_theta_cq.global_error_schedule().global_error_target(), color='blue')
                 axis.axhline(p_theta_cq.global_error_schedule().global_error_band().sup, color='red')
 
                 axis = axis_vv[0][2]
-                axis.set_title(ControlledSquaredLTEE.NAME)
-                axis.semilogy(results.t_v, results.error_vd[ControlledSquaredLTEE.NAME], '.')
+                axis.set_title(ControlledSquaredLTEE.NAME + ' (global:blue, local:green)')
+                axis.semilogy(results.t_v, results.global_error_vd[ControlledSquaredLTEE.NAME], '.', color='blue')
+                axis.semilogy(results.t_v, results.local_error_vd[ControlledSquaredLTEE.NAME], '.', color='green')
                 axis.axhline(controlled_sq_ltee.global_error_schedule().global_error_band().inf, color='green')
-                axis.axhline(controlled_sq_ltee.global_error_schedule().global_error_target(), color='blue')
                 axis.axhline(controlled_sq_ltee.global_error_schedule().global_error_band().sup, color='red')
 
                 axis = axis_vv[1][2]

@@ -79,8 +79,10 @@ class IntegrateTangentMapResults:
         t_v:np.ndarray,
         y_t:np.ndarray,
         J_t:np.ndarray,
-        error_vd:np.ndarray,
+        global_error_vd:np.ndarray,
+        local_error_vd:np.ndarray,
         t_step_v:np.ndarray,
+        t_step_iteration_count_v:np.ndarray,
         failure_explanation_o:typing.Optional[str],
     ) -> None:
         # Check the identity claimed for t_v and t_step_v.
@@ -98,14 +100,20 @@ class IntegrateTangentMapResults:
         # Sequence (tensor) of parameter values, indexed as J_t[i,J,K], where i is the time index and J and K
         # are the [multi]indices for the parameter type (could be scalar, vector, or tensor).
         self.J_t                    = J_t
-        # Dictionary of error sequences mapped to their names.  Each error sequence is indexed as error_v[i],
-        # where i is the index for t_v.
-        self.error_vd               = error_vd
+        # Dictionary of global error sequences mapped to their names.  Each global error sequence is indexed
+        # as global_error_v[i], where i is the index for t_v.
+        self.global_error_vd        = global_error_vd
+        # Dictionary of local error sequences mapped to their names.  Each local error sequence is indexed
+        # as local_error_v[i], where i is the index for t_v.
+        self.local_error_vd         = local_error_vd
         # Sequence of timestep values, indexed as t_step_v[i], though len(t_step_v) == len(t_v)-1.  Note that
         # this should satisfy t_v[:-1]+t_step_v == t_v[1:] (since each time value is defined as the previous
         # time value plus the current time step), but it will NOT satisfy t_v[1:]-t_v[:-1] == t_step_v due to
         # numerical roundoff error.
         self.t_step_v               = t_step_v
+        # Number of iterations it took to compute an acceptable t_step value.  Indexed as t_step_iteration_count_v[i],
+        # where i is the index for t_v.
+        self.t_step_iteration_count_v   = t_step_iteration_count_v
         # If failure_explanation_o is None, then the integration is understood to have succeeded.
         self.succeeded              = failure_explanation_o is None
         # Store the [optional] failure explanation.
@@ -176,8 +184,10 @@ def integrate_tangent_map (
         t_v=results.t_v,
         y_t=results.y_t[:,:base_space_dim].reshape(-1,*y_shape),
         J_t=results.y_t[:,base_space_dim:].reshape(-1,*J_shape),
-        error_vd=results.error_vd,
+        global_error_vd=results.global_error_vd,
+        local_error_vd=results.local_error_vd,
         t_step_v=results.t_step_v,
+        t_step_iteration_count_v=results.t_step_iteration_count_v,
         failure_explanation_o=results.failure_explanation_o,
     )
 
@@ -198,7 +208,7 @@ if __name__ == '__main__':
 
     def plot_dynamics (plot_p, t_initial, t_final, y_initial_v, X_fast, DX_fast, H_fast, S_fast, apply_along_y_t_axes, apply_along_J_t_axes, *, plot_function_o=None, plot_function_2_o=None):
         row_count   = 2
-        col_count   = 4
+        col_count   = 5
         size        = 8
         fig,axis_vv = plt.subplots(row_count, col_count, squeeze=False, figsize=(size*col_count,size*row_count))
 
@@ -213,13 +223,16 @@ if __name__ == '__main__':
                     name='H',
                     reference_quantity=H_initial,
                     quantity_evaluator=(lambda t,z:H_fast(z[:y_initial.size].reshape(y_shape))),
-                    global_error_band=vorpy.integration.adaptive.RealInterval(10e-10, 10e-7),
+                    global_error_band=vorpy.integration.adaptive.RealInterval(10e-30, 10e-7),
+                    #global_error_band=vorpy.integration.adaptive.RealInterval(10e-10, 10e-7),
                 ),
                 vorpy.integration.adaptive.ControlledQuantity(
                     name='S',
                     reference_quantity=S_initial,
                     quantity_evaluator=(lambda t,z:S_fast(z[y_initial.size:].reshape(J_shape))),
-                    global_error_band=vorpy.integration.adaptive.RealInterval(10e-10, 10e-7),
+                    global_error_band=vorpy.integration.adaptive.RealInterval(10e-30, 10e3),
+                    #global_error_band=vorpy.integration.adaptive.RealInterval(10e-30, 10e-6),
+                    #global_error_band=vorpy.integration.adaptive.RealInterval(10e-8, 10e-6),
                 ),
             ]
             results = integrate_tangent_map(
@@ -233,7 +246,7 @@ if __name__ == '__main__':
             )
 
             print(f'len(results.t_v) = {len(results.t_v)}')
-            print(f'results.error_vd.keys() = {results.error_vd.keys()}')
+            print(f'results.global_error_vd.keys() = {results.global_error_vd.keys()}')
             print(f'results.J_t[-1] = {results.J_t[-1]}')
 
             H_v = vorpy.apply_along_axes(H_fast, apply_along_y_t_axes, (results.y_t,))
@@ -244,6 +257,11 @@ if __name__ == '__main__':
             svd_lyapunov_exponent_t = np.log(svd_t) / results.t_v[:,np.newaxis]
 
             print(f'final Lyapunov exponents: {svd_lyapunov_exponent_t[-1]}')
+
+            def condition_number (J:np.ndarray):
+                return np.linalg.cond(vorpy.tensor.as_linear_operator(J))
+
+            J_condition_number_v = vorpy.apply_along_axes(condition_number, apply_along_J_t_axes, (results.J_t,))
 
             ## In theory this should give the same result as the SVD-based computation, but there are
             ## more operations here (taking the symmetric square of J_t).
@@ -281,18 +299,23 @@ if __name__ == '__main__':
             axis.semilogy(results.t_v[:-1], results.t_step_v, '.', alpha=0.2)
 
             axis = axis_vv[1][1]
-            sq_ltee = results.error_vd['Squared LTEE']
+            sq_ltee = results.global_error_vd['Squared LTEE']
             axis.set_title(f'LTEE squared - max: {np.max(sq_ltee)}')
             axis.semilogy(results.t_v, sq_ltee)
 
             axis = axis_vv[0][2]
-            abs_H_error = np.abs(H_v - H_v[0])
-            axis.set_title(f'abs(H - H_0) - max: {np.max(abs_H_error)}')
-            axis.semilogy(results.t_v, abs_H_error)
+            #abs_H_error = np.abs(H_v - H_v[0])
+            axis.set_title(f'abs(H - H_0) - max: {np.max(results.global_error_vd["H"]):.3e}\nglobal:blue, local:green')
+            #axis.semilogy(results.t_v, abs_H_error)
+            axis.semilogy(results.t_v, results.global_error_vd['H'], '.', color='blue')
+            axis.semilogy(results.t_v, results.local_error_vd['H'], '.', color='green')
 
             axis = axis_vv[1][2]
-            axis.set_title(f'symplectomorphicity_condition - max: {np.max(S_v)}')
-            axis.semilogy(results.t_v, S_v)
+            #axis.set_title(f'symplectomorphicity_condition - max: {np.max(S_v)}')
+            axis.set_title(f'symplectomorphicity_condition - max: {np.max(results.global_error_vd["S"]):.3e}\nglobal:blue, local:green')
+            #axis.semilogy(results.t_v, S_v)
+            axis.semilogy(results.t_v, results.global_error_vd['S'], '.', color='blue')
+            axis.semilogy(results.t_v, results.local_error_vd['S'], '.', color='green')
 
             axis = axis_vv[0][3]
             axis.set_title(f'singular values - max abs: {np.max(np.abs(svd_t))}')
@@ -312,6 +335,14 @@ if __name__ == '__main__':
             #axis.set_title('abs(Lyapunov exponents) computed from eigenvalues')
             #axis.semilogy(results.t_v, np.abs(eigenvalues_lyapunov_exponent_v[:,0]), color='blue')
             #axis.semilogy(results.t_v, np.abs(eigenvalues_lyapunov_exponent_v[:,1]), color='green')
+
+            axis = axis_vv[0][4]
+            axis.set_title(f't_step_iteration_count - max: {np.max(results.t_step_iteration_count_v)}, mean: {np.mean(results.t_step_iteration_count_v)}')
+            axis.semilogy(results.t_v[:-1], results.t_step_iteration_count_v, '.', alpha=0.2)
+
+            axis = axis_vv[1][4]
+            axis.set_title(f'J condition number - max: {np.max(J_condition_number_v)}')
+            axis.semilogy(results.t_v, J_condition_number_v, '.', alpha=0.2)
 
             print('\n\n')
 
@@ -725,13 +756,13 @@ if __name__ == '__main__':
                 apply_along_y_t_axes = (1,2)
                 apply_along_J_t_axes = (1,2,3,4)
 
-                plot_p = pathlib.Path('kh.04') / f'H={float(H_initial)}.R={R_initial}.p_R={p_R_initial}.p_theta={p_theta_initial}.t_final={t_final}.png'
+                plot_p = pathlib.Path('kh.05') / f'H={float(H_initial)}.R={R_initial}.p_R={p_R_initial}.p_theta={p_theta_initial}.t_final={t_final}.png'
                 plot_dynamics(plot_p, t_initial, t_final, [y_initial], X_fast, DX_fast, H_fast, S_fast, apply_along_y_t_axes, apply_along_J_t_axes, plot_function_o=plot_function, plot_function_2_o=plot_function_2)
 
                 break
 
-    #plot_pendulum_dynamics()
-    #plot_double_pendulum_dynamics()
-    #plot_kepler_dynamics()
+    plot_pendulum_dynamics()
+    plot_double_pendulum_dynamics()
+    plot_kepler_dynamics()
     #plot_kepler_heisenberg_dynamics()
-    plot_kepler_heisenberg_dynamics_stretched_cylindrical()
+    #plot_kepler_heisenberg_dynamics_stretched_cylindrical()
