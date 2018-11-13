@@ -146,7 +146,15 @@ class ControlledQuantity(Control):
         return retval
 
 class IntegrateVectorFieldResults:
-    def __init__ (self, t_v:np.ndarray, y_t:np.ndarray, error_vd:np.ndarray, t_step_v:np.ndarray) -> None:
+    def __init__ (
+        self,
+        *,
+        t_v:np.ndarray,
+        y_t:np.ndarray,
+        error_vd:np.ndarray,
+        t_step_v:np.ndarray,
+        failure_explanation_o:typing.Optional[str],
+    ) -> None:
         # Check the identity claimed for t_v and t_step_v.
         identity_failure_v = (t_v[:-2]+t_step_v[:-1]) - t_v[1:-1]
         if len(identity_failure_v) > 0:
@@ -155,18 +163,22 @@ class IntegrateVectorFieldResults:
             #print(f'max naive identity failure: {np.max(np.abs(np.diff(t_v[:-1]) - t_step_v[:-1]))}')
 
         # Sequence of time values, indexed as t_v[i].
-        self.t_v        = t_v
+        self.t_v                    = t_v
         # Sequence (tensor) of parameter values, indexed as y_t[i,J], where i is the time index and
         # is the [multi]index for the parameter type (could be scalar, vector, or tensor).
-        self.y_t        = y_t
+        self.y_t                    = y_t
         # Dictionary of error sequences mapped to their names.  Each error sequence is indexed as error_v[i],
         # where i is the index for t_v.
-        self.error_vd   = error_vd
+        self.error_vd               = error_vd
         # Sequence of timestep values, indexed as t_step_v[i], though len(t_step_v) == len(t_v)-1.  Note that
         # this should satisfy t_v[:-1]+t_step_v == t_v[1:] (since each time value is defined as the previous
         # time value plus the current time step), but it will NOT satisfy t_v[1:]-t_v[:-1] == t_step_v due to
         # numerical roundoff error.
-        self.t_step_v   = t_step_v
+        self.t_step_v               = t_step_v
+        # If failure_explanation_o is None, then the integration is understood to have succeeded.
+        self.succeeded              = failure_explanation_o is None
+        # Store the [optional] failure explanation.
+        self.failure_explanation_o  = failure_explanation_o
 
 class SalvagedResultsException(Exception):
     pass
@@ -240,6 +252,8 @@ def integrate_vector_field (
         def log_message (message:str) -> None:
             pass
 
+    # Sentinel value to indicate the programmer forgot to set the failure explanation (to a str or None).
+    failure_explanation_o : typing.Optional[str] = '<invalid-failure-explanation>'
     #try:
     if True:
         t_step = 1.0e-2 # Arbitrary for now
@@ -272,22 +286,28 @@ def integrate_vector_field (
             t_step_iteration_index = 0
             can_go_in_direction_o = 0
             while True:
+                t_step_iteration_index_limit = 1000
                 log_t_step_message(f'---- t_step-finding iteration {t_step_iteration_index}')
                 if integrator.t_now + t_step == integrator.t_now:
-                    log_t_step_message('t_step is too small (THIS PROBABLY MEANS THE GLOBAL ERROR SCHEDULE IS NOT AGGRESSIVE ENOUGH); breaking')
+                    failure_explanation_o = 't_step too small (GLOBAL ERROR SCHEDULE NOT AGGRESSIVE ENOUGH)'
+                    log_t_step_message('t_step became too small (GLOBAL ERROR SCHEDULE NOT AGGRESSIVE ENOUGH); breaking')
                     t_step_is_bad = True
                     break
-                if t_step_iteration_index > 1000:
+                if t_step_iteration_index > t_step_iteration_index_limit:
+                    failure_explanation_o = f't_step_iteration_index exceeded limit of {t_step_iteration_index_limit} (required too many t_step values to succeed at a single time step)'
                     log_t_step_message(f't_step_iteration_index exceeded limit; breaking')
                     t_step_is_bad = True
                     break
+
                 log_t_step_message(f't_step_iteration_index  {t_step_iteration_index}; t_step = {t_step}')
+
                 # Make sure t_step wouldn't exceed t_final
                 if t_step > t_final - integrator.t_now:
                     t_step = t_final - integrator.t_now
                     assert integrator.t_now + t_step >= t_final, 't_step needs to be adjusted more carefully due to roundoff error in the subtraction'
                 # Run the integrator one step
                 integrator.step(t_step)
+
                 # Analyze the various error band excesses
                 error_d = make_error_d(
                     {
@@ -361,6 +381,9 @@ def integrate_vector_field (
             integrator.set_inputs(*integrator.get_outputs())
             iteration_index += 1
 
+        if integrator.t_now >= t_final:
+            failure_explanation_o = None # No failure indicates integration succeeded.
+
     #except KeyboardInterrupt as e:
         #print('Caught KeyboardInterrupt -- returning existing results.')
         ##raise SalvagedResultsException(construct_results()) from e
@@ -374,6 +397,7 @@ def integrate_vector_field (
         y_t=np.array(y_tv),
         error_vd={name:np.array(error_v) for name,error_v in error_vd.items()},
         t_step_v=np.array(t_step_v),
+        failure_explanation_o=failure_explanation_o,
     )
 
 if __name__ == '__main__':

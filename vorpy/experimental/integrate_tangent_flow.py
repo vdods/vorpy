@@ -73,7 +73,16 @@ import typing
 import vorpy.integration.adaptive
 
 class IntegrateTangentMapResults:
-    def __init__ (self, t_v:np.ndarray, y_t:np.ndarray, J_t:np.ndarray, error_vd:np.ndarray, t_step_v:np.ndarray) -> None:
+    def __init__ (
+        self,
+        *,
+        t_v:np.ndarray,
+        y_t:np.ndarray,
+        J_t:np.ndarray,
+        error_vd:np.ndarray,
+        t_step_v:np.ndarray,
+        failure_explanation_o:typing.Optional[str],
+    ) -> None:
         # Check the identity claimed for t_v and t_step_v.
         identity_failure_v = (t_v[:-2]+t_step_v[:-1]) - t_v[1:-1]
         if len(identity_failure_v) > 0:
@@ -82,21 +91,25 @@ class IntegrateTangentMapResults:
             #print(f'max naive identity failure: {np.max(np.abs(np.diff(t_v[:-1]) - t_step_v[:-1]))}')
 
         # Sequence of time values, indexed as t_v[i].
-        self.t_v        = t_v
+        self.t_v                    = t_v
         # Sequence (tensor) of parameter values, indexed as y_t[i,J], where i is the time index and J
         # is the [multi]index for the parameter type (could be scalar, vector, or tensor).
-        self.y_t        = y_t
+        self.y_t                    = y_t
         # Sequence (tensor) of parameter values, indexed as J_t[i,J,K], where i is the time index and J and K
         # are the [multi]indices for the parameter type (could be scalar, vector, or tensor).
-        self.J_t        = J_t
+        self.J_t                    = J_t
         # Dictionary of error sequences mapped to their names.  Each error sequence is indexed as error_v[i],
         # where i is the index for t_v.
-        self.error_vd   = error_vd
+        self.error_vd               = error_vd
         # Sequence of timestep values, indexed as t_step_v[i], though len(t_step_v) == len(t_v)-1.  Note that
         # this should satisfy t_v[:-1]+t_step_v == t_v[1:] (since each time value is defined as the previous
         # time value plus the current time step), but it will NOT satisfy t_v[1:]-t_v[:-1] == t_step_v due to
         # numerical roundoff error.
-        self.t_step_v   = t_step_v
+        self.t_step_v               = t_step_v
+        # If failure_explanation_o is None, then the integration is understood to have succeeded.
+        self.succeeded              = failure_explanation_o is None
+        # Store the [optional] failure explanation.
+        self.failure_explanation_o  = failure_explanation_o
 
 def integrate_tangent_map (
     *,
@@ -165,6 +178,7 @@ def integrate_tangent_map (
         J_t=results.y_t[:,base_space_dim:].reshape(-1,*J_shape),
         error_vd=results.error_vd,
         t_step_v=results.t_step_v,
+        failure_explanation_o=results.failure_explanation_o,
     )
 
 if __name__ == '__main__':
@@ -668,7 +682,7 @@ if __name__ == '__main__':
             #axis.semilogy(results.t_v[:-1], results.t_step_v, '.', alpha=0.1)
 
         def plot_function_2 (axis, results):
-            axis.set_title('(t, z(t))')
+            axis.set_title(f'(t, z(t))\nfailure_explanation_o = {results.failure_explanation_o}')
             axis.plot(results.t_v, results.y_t[:,0,2])
             axis.axhline(0.0, color='black')
 
@@ -711,8 +725,10 @@ if __name__ == '__main__':
                 apply_along_y_t_axes = (1,2)
                 apply_along_J_t_axes = (1,2,3,4)
 
-                plot_p = pathlib.Path('kh.03') / f'H={float(H_initial)}.R={R_initial}.p_R={p_R_initial}.p_theta={p_theta_initial}.t_final={t_final}.png'
+                plot_p = pathlib.Path('kh.04') / f'H={float(H_initial)}.R={R_initial}.p_R={p_R_initial}.p_theta={p_theta_initial}.t_final={t_final}.png'
                 plot_dynamics(plot_p, t_initial, t_final, [y_initial], X_fast, DX_fast, H_fast, S_fast, apply_along_y_t_axes, apply_along_J_t_axes, plot_function_o=plot_function, plot_function_2_o=plot_function_2)
+
+                break
 
     #plot_pendulum_dynamics()
     #plot_double_pendulum_dynamics()
