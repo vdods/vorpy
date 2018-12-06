@@ -9,10 +9,12 @@ import importlib
 import itertools
 import numpy as np
 import os
+import pathlib
 import re
 import sympy
 import sys
 import traceback
+import typing
 import vorpy.tensor
 
 def __is_python_identifier (s):
@@ -268,7 +270,7 @@ def cached_lambdified (function_id, *, function_creator, cache_dirname='lambdifi
     # TODO: make force_recache option
 
     assert __is_python_identifier(function_id)
-    assert __is_python_identifier(cache_dirname)
+    assert __is_python_identifier(cache_dirname) # TODO: Allow nested dirs here
 
     function_module_name = cache_dirname + '.' + function_id
 
@@ -319,6 +321,41 @@ def cached_lambdified (function_id, *, function_creator, cache_dirname='lambdifi
             raise
 
     return function_module.__dict__[function_id]
+
+def cache_lambdify (*, function_id:str, argument_id:str, replacement_d:typing.Dict[str,str]={}, import_v:typing.List[str]=[], decorator_v:typing.List[str]=[], cache_dirname_p:pathlib.Path='lambdified_cache', verbose:bool=False):
+    """
+    This is a decorator function which makes it easy to obtain cached_lambdified functions.  Example:
+
+        import numpy as np
+        import sympy as sp
+        import vorpy.symbolic
+
+        def F_symbolic (Q):
+            x, y, z = Q
+            return x**2 - y*sp.sin(z) + sp.sqrt(x+y+z)
+
+        @vorpy.symbolic.cache_lambdify(
+            function_id='F',
+            argument_id='Q',
+            replacement_d={'dtype=object':'dtype=float', 'sqrt':'np.sqrt', 'sin':'np.sin'},
+            import_v=['import numpy as np'],
+            verbose=True,
+        )
+        def F_fast ():
+            x, y, z = sp.var('x,y,z')
+            Q = np.array([x,y,z])
+            return F_symbolic(Q), Q
+
+    Reference: https://python-3-patterns-idioms-test.readthedocs.io/en/latest/PythonDecorators.html
+    """
+    def wrap (generate_f_and_arguments):
+        def function_creator ():
+            f, arguments = generate_f_and_arguments()
+            return f, arguments, replacement_d, argument_id, import_v, decorator_v
+
+        return vorpy.symbolic.cached_lambdified(function_id, function_creator=function_creator, cache_dirname=str(cache_dirname_p), verbose=verbose)
+
+    return wrap
 
 def homogeneous_polynomial (coefficient_prefix, degree, X):
     """

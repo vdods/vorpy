@@ -1,6 +1,7 @@
 import itertools
 import numpy as np
 import os
+import pathlib
 import shutil
 import sympy
 import time
@@ -215,6 +216,28 @@ def test_lambdified_cached ():
 
     print('unit test passed.')
 
+def test_cache_lambdify ():
+    def F_symbolic (Q):
+        x, y, z = Q
+        return x**2 - y*sympy.sin(z) + sympy.sqrt(x+y+z)
+
+    @vorpy.symbolic.cache_lambdify(
+        function_id='F',
+        argument_id='Q',
+        replacement_d={'dtype=object':'dtype=float', 'sqrt':'np.sqrt', 'sin':'np.sin'},
+        import_v=['import numpy as np'],
+        cache_dirname_p=pathlib.Path('test_artifacts_lambdified_cache'), # TODO: Allow nested dirs here
+        verbose=True,
+    )
+    def F_fast ():
+        x, y, z = sympy.var('x,y,z')
+        Q = np.array([x,y,z])
+        return F_symbolic(Q), Q
+
+    for x,y,z in itertools.product(np.linspace(0.0, 1.0, 10), np.linspace(0.0, 1.0, 10), np.linspace(0.0, 1.0, 10)):
+        Q = np.array([x, y, z])
+        assert F_fast(Q) == float(F_symbolic(Q))
+
 def test_homogeneous_polynomial ():
     x,y,z = X = np.array((sympy.var('x'), sympy.var('y'), sympy.var('z')))
 
@@ -257,6 +280,7 @@ def test_polynomial ():
     print('test_polynomial passed')
 
 if __name__ == '__main__':
+    test_cache_lambdify()
     test_homogeneous_polynomial()
     test_polynomial()
 
