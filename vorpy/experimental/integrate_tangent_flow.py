@@ -69,8 +69,10 @@ TODO: Write down the non-autonomous equations (i.e. where X depends on t also).
 
 import itertools
 import numpy as np
+import sys
 import typing
 import vorpy.integration.adaptive
+import vorpy.pickle
 
 class IntegrateTangentMapResults:
     def __init__ (
@@ -206,7 +208,7 @@ if __name__ == '__main__':
         M_as_2_tensor = M.reshape(operand_space_dim, operand_space_dim)
         return numpy.linalg.svd(M_as_2_tensor, full_matrices=False, compute_uv=False)
 
-    def plot_dynamics (plot_p, t_initial, t_final, y_initial_v, X_fast, DX_fast, H_fast, S_fast, apply_along_y_t_axes, apply_along_J_t_axes, *, plot_function_o=None, plot_function_2_o=None):
+    def plot_dynamics (plot_p, t_initial, t_final, y_initial_v, X_fast, DX_fast, H_fast, S_fast, apply_along_y_t_axes, apply_along_J_t_axes, *, plot_function_o=None, plot_function_2_o=None, write_pickle:bool=False):
         row_count   = 2
         col_count   = 5
         size        = 8
@@ -262,6 +264,24 @@ if __name__ == '__main__':
                 return np.linalg.cond(vorpy.tensor.as_linear_operator(J))
 
             J_condition_number_v = vorpy.apply_along_axes(condition_number, apply_along_J_t_axes, (results.J_t,))
+
+            if write_pickle:
+                data_d = dict(
+                    results=results,
+                    y_initial=y_initial,
+                    y_shape=y_shape,
+                    J_shape=J_shape,
+                    H_initial=H_initial,
+                    S_initial=S_initial,
+                    H_v=H_v,
+                    S_v=S_v,
+                    svd_t=svd_t,
+                    svd_lyapunov_exponent_t=svd_lyapunov_exponent_t,
+                    J_condition_number_v=J_condition_number_v,
+                )
+                pickle_p = pathlib.Path(f'{plot_p}.pickle')
+                pickle_p.parent.mkdir(parents=True, exist_ok=True)
+                vorpy.pickle.pickle(data=data_d, pickle_filename=pickle_p, log_out=sys.stdout)
 
             ## In theory this should give the same result as the SVD-based computation, but there are
             ## more operations here (taking the symmetric square of J_t).
@@ -322,9 +342,8 @@ if __name__ == '__main__':
             axis.semilogy(results.t_v, svd_t)
 
             axis = axis_vv[1][3]
-            le_t = np.abs(svd_lyapunov_exponent_t)
-            axis.set_title(f'abs(Lyapunov exponents) computed from singular values - max: {np.max(le_t[-1])}')
-            axis.semilogy(results.t_v, le_t)
+            axis.set_title(f'abs(Lyapunov exponents) computed from singular values - max: {np.max(svd_lyapunov_exponent_t[-1])}')
+            axis.semilogy(results.t_v, svd_lyapunov_exponent_t)
 
             #axis = axis_vv[0][3]
             #axis.set_title('eigenvalues')
@@ -596,16 +615,26 @@ if __name__ == '__main__':
             axis.plot(results.t_v, results.y_t[:,0,2])
             axis.axhline(0.0, color='black')
 
-        H_initial_v = [sp.Rational(n,4) for n in range(0,2+1)]
-        #H_initial_v = [sp.Rational(n,4) for n in range(-2,2+1)]
+        #H_initial_v = [sp.Rational(n,4) for n in range(0,2+1)]
+        ##H_initial_v = [sp.Rational(n,4) for n in range(-2,2+1)]
 
-        x_initial_v = [float(sp.Rational(n,8) + 1) for n in range(-2,2+1)]
+        #x_initial_v = [float(sp.Rational(n,8) + 1) for n in range(-2,2+1)]
+        #assert 1.0 in x_initial_v # We want exactly 1 to be in this.
+
+        #p_x_initial_v = [float(sp.Rational(n,16)) for n in range(-2,2+1)]
+        #assert 0.0 in p_x_initial_v # We want exactly 0 to be in this.
+
+        #p_theta_initial_v = np.linspace(0.05, 0.4, 3)
+
+        H_initial_v = [sp.Integer(0)]
+
+        x_initial_v = [1.0]
         assert 1.0 in x_initial_v # We want exactly 1 to be in this.
 
-        p_x_initial_v = [float(sp.Rational(n,16)) for n in range(-2,2+1)]
+        p_x_initial_v = [float(sp.Rational(n,16)) for n in range(-3,3+1)]
         assert 0.0 in p_x_initial_v # We want exactly 0 to be in this.
 
-        p_theta_initial_v = np.linspace(0.05, 0.4, 3)
+        p_theta_initial_v = np.linspace(0.05, 0.4, 10)
 
         for H_initial in H_initial_v:
 
@@ -633,8 +662,8 @@ if __name__ == '__main__':
                 apply_along_y_t_axes = (1,2)
                 apply_along_J_t_axes = (1,2,3,4)
 
-                plot_p = pathlib.Path('kh.01') / f'H={float(H_initial)}.x={x_initial}.p_x={p_x_initial}.p_theta={p_theta_initial}.t_final={t_final}.png'
-                plot_dynamics(plot_p, t_initial, t_final, [y_initial], X_fast, DX_fast, H_fast, S_fast, apply_along_y_t_axes, apply_along_J_t_axes, plot_function_o=plot_function, plot_function_2_o=plot_function_2)
+                plot_p = pathlib.Path('kh.06.cartesian') / f'H={float(H_initial)}.x={x_initial}.p_x={p_x_initial}.p_theta={p_theta_initial}.t_final={t_final}.png'
+                plot_dynamics(plot_p, t_initial, t_final, [y_initial], X_fast, DX_fast, H_fast, S_fast, apply_along_y_t_axes, apply_along_J_t_axes, plot_function_o=plot_function, plot_function_2_o=plot_function_2, write_pickle=True)
 
     def plot_kepler_heisenberg_dynamics_stretched_cylindrical ():
         R, theta, z, p_R, p_theta, p_z = sp.var('R, theta, z, p_R, p_theta, p_z')
@@ -717,18 +746,19 @@ if __name__ == '__main__':
             axis.plot(results.t_v, results.y_t[:,0,2])
             axis.axhline(0.0, color='black')
 
-        H_initial_v = [sp.Rational(n,4) for n in range(0,2+1)]
+        #H_initial_v = [sp.Rational(n,4) for n in range(0,2+1)]
+        H_initial_v = [sp.Integer(0)]
         #H_initial_v = [sp.Rational(n,4) for n in range(-2,2+1)]
 
         #R_initial_v = [sp.log(float(sp.Rational(n,8) + 1)) for n in range(-2,2+1)]
         R_initial_v = [0.0]
         assert 0.0 in R_initial_v # We want exactly 0 to be in this.
 
-        p_R_initial_v = [float(sp.Rational(n,16)) for n in range(-2,2+1)]
+        p_R_initial_v = [float(sp.Rational(n,16)) for n in range(-3,3+1)]
         #p_R_initial_v = [0.0]
         assert 0.0 in p_R_initial_v # We want exactly 0 to be in this.
 
-        p_theta_initial_v = np.linspace(0.05, 0.4, 3)
+        p_theta_initial_v = np.linspace(0.05, 0.4, 10)
 
         for H_initial in H_initial_v:
 
@@ -756,13 +786,11 @@ if __name__ == '__main__':
                 apply_along_y_t_axes = (1,2)
                 apply_along_J_t_axes = (1,2,3,4)
 
-                plot_p = pathlib.Path('kh.05') / f'H={float(H_initial)}.R={R_initial}.p_R={p_R_initial}.p_theta={p_theta_initial}.t_final={t_final}.png'
-                plot_dynamics(plot_p, t_initial, t_final, [y_initial], X_fast, DX_fast, H_fast, S_fast, apply_along_y_t_axes, apply_along_J_t_axes, plot_function_o=plot_function, plot_function_2_o=plot_function_2)
+                plot_p = pathlib.Path('kh.06.stretchedcylindrical') / f'H={float(H_initial)}.R={R_initial}.p_R={p_R_initial}.p_theta={p_theta_initial}.t_final={t_final}.png'
+                plot_dynamics(plot_p, t_initial, t_final, [y_initial], X_fast, DX_fast, H_fast, S_fast, apply_along_y_t_axes, apply_along_J_t_axes, plot_function_o=plot_function, plot_function_2_o=plot_function_2, write_pickle=True)
 
-                break
-
-    plot_pendulum_dynamics()
-    plot_double_pendulum_dynamics()
-    plot_kepler_dynamics()
+    #plot_pendulum_dynamics()
+    #plot_double_pendulum_dynamics()
+    #plot_kepler_dynamics()
     #plot_kepler_heisenberg_dynamics()
-    #plot_kepler_heisenberg_dynamics_stretched_cylindrical()
+    plot_kepler_heisenberg_dynamics_stretched_cylindrical()
