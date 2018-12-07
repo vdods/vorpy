@@ -6,8 +6,8 @@ dist
 test_artifacts
 vorpy.egg-info
 .mypy_cache
-kh.*
-kh
+/kh.*
+/kh
 *.png
 core
-kh_dilation*
+/kh_dilation*
