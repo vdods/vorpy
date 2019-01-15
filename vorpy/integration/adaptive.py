@@ -152,6 +152,7 @@ class IntegrateVectorFieldResults:
         *,
         t_v:np.ndarray,
         y_t:np.ndarray,
+        y_jet_to:typing.Optional[np.ndarray],
         global_error_vd:np.ndarray,
         local_error_vd:np.ndarray,
         t_step_v:np.ndarray,
@@ -167,9 +168,14 @@ class IntegrateVectorFieldResults:
 
         # Sequence of time values, indexed as t_v[i].
         self.t_v                        = t_v
-        # Sequence (tensor) of parameter values, indexed as y_t[i,J], where i is the time index and
-        # is the [multi]index for the parameter type (could be scalar, vector, or tensor).
+        # Sequence (tensor) of parameter values, indexed as y_t[i,K], where i is the time index and
+        # K is the [multi]index for the parameter type (could be scalar, vector, or tensor).
         self.y_t                        = y_t
+        # Sequence (tensor) of parameter jet values (0-jet and 1-jet), indexed as y_jet_to[i,j,K],
+        # where i is the time index, j is the jet index (the order of derivative), and K is the
+        # [multi]index for the parameter type (could be scalar, vector, or tensor).  Will only be
+        # not-None if requested in the call to integrate_vector_field.
+        self.y_jet_to                   = y_jet_to
         # Dictionary of global error sequences mapped to their names.  Each global error sequence is indexed as
         # global_error_v[i], where i is the index for t_v.
         self.global_error_vd            = global_error_vd
@@ -200,6 +206,7 @@ def integrate_vector_field (
     y_initial:np.ndarray,
     controlled_quantity_d:typing.Dict[str,ControlledQuantity],
     controlled_sq_ltee:ControlledSquaredLTEE,
+    return_y_jet:bool=False
 ) -> IntegrateVectorFieldResults:
     """
     Integrate a system of ODEs using a variable timestep that's based on bounding the error on
@@ -209,6 +216,10 @@ def integrate_vector_field (
 
     vector_field, whose arguments are vector_field(t,y) should return a numpy.ndarray of the same shape and dtype as
     its second input, which should be the same as y_initial.
+
+    If return_y_jet is True (default is False), then the attribute y_jet_to in the returned
+    IntegrateVectorFieldResults will be not-None, and will contain the 0th and 1th jets of
+    the solution (see IntegrateVectorFieldResults for more details).
 
     The return value is the integrated trajectory, vector of time values, and error values.
     The first index of each of these quantities is the same.  See IntegrateVectorFieldResults.
@@ -464,9 +475,24 @@ def integrate_vector_field (
 
     print(f'returning results')
 
+    if return_y_jet:
+        y_jet_to            = np.ndarray((len(t_v),2)+y_initial.shape, dtype=y_initial.dtype)
+        y_jet_to[:,0,...]   = np.array(y_tv)
+        # if y_jet_to exists, then y_t is just a view into that.
+        y_t                 = y_jet_to[:,0,...]
+        # Need to know which axes index the coordinate portion of y_t in order to use vorpy.apply_along_axes.
+        # E.g. if y_t.shape is (2300,2,5), then the coordinate axes are all but the 0th axis; i.e. (1,2).
+        y_t_coordinate_axes = tuple(range(1, len(y_t.shape)))
+        # Assign the 1-jet easily by computing the vector field for each y_t value.
+        y_jet_to[:,1,...]   = vorpy.apply_along_axes(vector_field, y_t_coordinate_axes, (y_t,))
+    else:
+        y_t                 = np.array(y_tv)
+        y_jet_to            = None
+
     return IntegrateVectorFieldResults(
         t_v=np.array(t_v),
-        y_t=np.array(y_tv),
+        y_t=y_t,
+        y_jet_to=y_jet_to,
         global_error_vd={name:np.array(global_error_v) for name,global_error_v in global_error_vd.items()},
         local_error_vd={name:np.array(local_error_v) for name,local_error_v in local_error_vd.items()},
         t_step_v=np.array(t_step_v),
