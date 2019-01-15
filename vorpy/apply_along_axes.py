@@ -6,6 +6,8 @@ def apply_along_axes (func, input_axis_v, input_array_v, *args, output_axis_v=No
     """
     This function is a generalization of numpy.apply_along_axis.
 
+    TODO: Add a parameter for the assignment destination, so that no temporaries are created.
+
     Let A = (0,1,...,N-1), where N is len(input_array_v[0].shape).  input_axis_v should be* a nonempty
     subsequence of A; this means that 0 < len(input_axis_v) <= len(A), each element of input_axis_v
     must be an element of the sequence A, and input_axis_v must be strictly increasing (as A is).

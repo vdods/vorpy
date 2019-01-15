@@ -10,6 +10,31 @@ import vorpy.integration.adaptive
 import vorpy.pickle
 import vorpy.symplectic
 
+def arg (x:float, y:float, branch_center:float) -> float:
+    # The bound is defined to be [branch_center-pi, branch_center+pi) (upper bound excluded).
+    branch_bounds = (branch_center-np.pi, branch_center+np.pi)
+
+    theta = np.arctan2(y, x)
+    if theta < branch_center:
+        while theta < branch_bounds[0]:
+            theta += 2.0*np.pi
+    else:
+        while theta >= branch_bounds[1]:
+            theta -= 2.0*np.pi
+
+    assert branch_bounds[0] <= theta < branch_bounds[1]
+
+def arg_v (x_v:np.ndarray, y_v:np.ndarray, branch_center_initial:float) -> float:
+    if x_v.shape != y_v.shape:
+        raise TypeError(f'expected x_v and y_v to have the same shape, but their shapes were {x_v.shape} and {y_v.shape} respectively')
+
+    theta_v = np.ndarray(x_v.shape, dtype=x_v.dtype)
+    theta_v = arg(x_v[0], y_v[0], branch_center_initial)
+    for i in range(len(theta_v), 1):
+        theta_v[i] = arg(x_v[i], y_v[i], theta_v[i-1])
+
+    return theta_v
+
 class KeplerHeisenbergSymbolics:
     """
     Base class representing the symbolic quantities in the Kepler-Heisenberg problem.
@@ -28,6 +53,11 @@ class KeplerHeisenbergSymbolics:
     @abc.abstractmethod
     def qp_coordinates (cls) -> np.ndarray:
         """Create symbolic Darboux coordinates for phase space (i.e. q=position, p=momentum)."""
+        pass
+
+    @classmethod
+    @abc.abstractmethod
+    def change_qp_coordinates_to (cls, other_coordinates:typing.Any, qp:np.ndarray) -> np.ndarray:
         pass
 
     @classmethod
@@ -238,6 +268,30 @@ class EuclideanSymbolics(KeplerHeisenbergSymbolics):
         ])
 
     @classmethod
+    @abc.abstractmethod
+    def change_qp_coordinates_to (cls, other_coordinates:typing.Any, qp:np.ndarray) -> np.ndarray:
+        if qp.shape != (2,3):
+            raise TypeError(f'expected qp.shape to be s+(2,3) for some shape s, but qp.shape was {qp.shape}')
+
+        if other_coordinates is EuclideanSymbolics:
+            return qp
+        #elif other_coordinates is QuadraticCylindricalSymbolics:
+            #qc_qp = np.ndarray(qp.shape, dtype=qp.dtype)
+
+            #x   = qp[...,0,0]
+            #y   = qp[...,0,1]
+            #z   = qp[...,0,2]
+            #p_x = qp[...,1,0]
+            #p_y = qp[...,1,1]
+            #p_z = qp[...,1,2]
+
+            #R   = x**2 + y**2
+            ## TODO: need to make continuous, moving choice of branch
+            #theta =
+        else:
+            raise TypeError(f'coordinate change from {cls} to {other_coordinates} not implemented')
+
+    @classmethod
     def qv_coordinates (cls) -> np.ndarray:
         return np.array([
             [sp.var('x'),   sp.var('y'),   sp.var('z')],
@@ -314,6 +368,40 @@ class QuadraticCylindricalSymbolics(KeplerHeisenbergSymbolics):
             [sp.var('R'),   sp.var('theta'),   sp.var('w')],
             [sp.var('p_R'), sp.var('p_theta'), sp.var('p_w')],
         ])
+
+    @classmethod
+    @abc.abstractmethod
+    def change_qp_coordinates_to (cls, other_coordinates:typing.Any, qp:np.ndarray) -> np.ndarray:
+        if qp.shape != (2,3):
+            raise TypeError(f'expected qp.shape to be s+(2,3) for some shape s, but qp.shape was {qp.shape}')
+
+        if other_coordinates is QuadraticCylindricalSymbolics:
+            return qp
+        elif other_coordinates is EuclideanSymbolics:
+            R       = qp[0,0]
+            theta   = qp[0,1]
+            w       = qp[0,2]
+            p_R     = qp[1,0]
+            p_theta = qp[1,1]
+            p_w     = qp[1,2]
+
+
+            r       = sp.sqrt(R)
+
+            x       = r*sp.cos(theta)
+            y       = r*sp.sin(theta)
+            z       = w/4
+            p_x     = 2*r*p_R*sp.cos(theta) - p_theta*sp.sin(theta)/r
+            p_y     = 2*r*p_R*sp.sin(theta) + p_theta*sp.cos(theta)/r
+            p_z     = 4*p_w
+
+            euclidean_qp = np.array([
+                [x,   y,   z],
+                [p_x, p_y, p_z],
+            ])
+            return euclidean_qp
+        else:
+            raise TypeError(f'coordinate change from {cls} to {other_coordinates} not implemented')
 
     @classmethod
     def qv_coordinates (cls) -> np.ndarray:
@@ -394,7 +482,7 @@ class KeplerHeisenbergNumerics:
         pass
 
     @classmethod
-    def compute_trajectory (cls, pickle_filename_p:pathlib.Path, qp_initial:np.ndarray, t_final:float, solution_sheet:int) -> vorpy.integration.adaptive.IntegrateVectorFieldResults:
+    def compute_trajectory (cls, pickle_filename_p:pathlib.Path, qp_initial:np.ndarray, t_final:float, solution_sheet:int, return_y_jet:bool=False) -> vorpy.integration.adaptive.IntegrateVectorFieldResults:
         if qp_initial.shape != (2,3):
             raise TypeError(f'Expected qp_initial.shape == (2,3) but it was actually {qp_initial.shape}')
 
@@ -603,6 +691,18 @@ class QuadraticCylindricalNumerics(KeplerHeisenbergNumerics):
 
     @staticmethod
     @vorpy.symbolic.cache_lambdify(
+        function_id='QuadraticCylindrical__qp_to_Euclidean',
+        argument_id='qp',
+        replacement_d={'dtype=object':'dtype=float', 'cos':'np.cos', 'sin':'np.sin', 'sqrt':'np.sqrt', 'ndarray':'np.ndarray'},
+        import_v=['import numpy as np'],
+        verbose=True,
+    )
+    def qp_to_Euclidean__fast () -> np.ndarray:
+        qp = QuadraticCylindricalSymbolics.qp_coordinates()
+        return QuadraticCylindricalSymbolics.change_qp_coordinates_to(EuclideanSymbolics, qp), qp
+
+    @staticmethod
+    @vorpy.symbolic.cache_lambdify(
         function_id='QuadraticCylindrical__H',
         argument_id='qp',
         replacement_d={'dtype=object':'dtype=float', 'pi':'np.pi', 'sqrt':'np.sqrt'},
@@ -742,3 +842,8 @@ class QuadraticCylindricalNumerics(KeplerHeisenbergNumerics):
     @staticmethod
     def compute_trajectory__worker (args):
         return QuadraticCylindricalNumerics.compute_trajectory(*args)
+
+if __name__ == '__main__':
+    qp = EuclideanSymbolics.qp_coordinates()
+    X_H = EuclideanSymbolics.X_H__symbolic(qp)
+    print(f'X_H:\n{X_H.reshape(-1,1)}')
