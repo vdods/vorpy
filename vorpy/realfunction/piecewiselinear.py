@@ -286,7 +286,7 @@ def local_maximizers (
     f_v:np.ndarray,
     *,
     t_v:typing.Optional[np.ndarray]=None,
-) -> np.ndarray:
+) -> typing.Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     NOTE: This function, like critical_points, technically doesn't belong in piecewiselinear.
     """
@@ -296,11 +296,54 @@ def local_minimizers (
     f_v:np.ndarray,
     *,
     t_v:typing.Optional[np.ndarray]=None,
-) -> np.ndarray:
+) -> typing.Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     NOTE: This function, like critical_points, technically doesn't belong in piecewiselinear.
     """
     return critical_points(f_v, t_v=t_v, orientation_p=(lambda o:o > 0))
+
+#def local_maximizers (
+    #f_v:np.ndarray,
+    #*,
+    #t_v:typing.Optional[np.ndarray]=None,
+#) -> typing.Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    #"""
+    #Returns maximizer_index_v, maximizer_f_v, maximizer_t_v, each having the same length, where
+
+        #maximizer_t_v[maximizer_index_v[i]] |-> maximizer_f_v[maximizer_index_v[i]]
+
+    #is a strict local max.  If t_v is not specified, then t_v=np.arange(len(f_v)), and so maximizer_t_v
+    #will be the same as maximizer_index_v.
+    #"""
+
+    #n = len(f_v)
+
+    #if n == 0:
+        #raise ValueError(f'can not compute local_maximizers of empty array f_v')
+
+    #if t_v is None:
+        #t_v = np.arange(n)
+    #else:
+        #if len(t_v) != n:
+            #raise TypeError(f'expected len(f_v) == len(t_v), but len(f_v) = {len(f_v)} and len(t_v) = {len(t_v)}')
+
+    #maximizer_index_v = []
+    #maximizer_f_v = []
+
+    #def is_local_max (i:int) -> bool:
+        #return (i > 0 and
+
+    #for i in range(len(f_v))
+
+
+    #return
+
+#def local_minimizers (
+    #f_v:np.ndarray,
+    #*,
+    #t_v:typing.Optional[np.ndarray]=None,
+#) -> typing.Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ## TODO: similar to local_maximizers
 
 if __name__ == '__main__':
     f_v = np.array([0, 2, 0, 2, -2, 2, 2, 0, 0, 0, -2, -2, -3, 0, -3, 0, 0, -3, 0])
