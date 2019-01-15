@@ -11,3 +11,7 @@ vorpy.egg-info
 *.png
 core
 /kh_dilation*
+.eggs
+lambdified_cache
+test_artifacts_lambdified_cache
+*.pickle
