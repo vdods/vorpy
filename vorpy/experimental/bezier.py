@@ -137,17 +137,21 @@ def cubic_interpolation (x_v:np.ndarray, y_jet_t:np.ndarray) -> typing.Callable[
         bernstein_t = vorpy.experimental.bernstein.bernstein_polynomial_basis(t, degree=3).astype(float)
         return np.einsum('k,k...', bernstein_t, y_t[segment_index,:,...])
 
-    interp_vec = np.vectorize(interp)
-
     def interpolator (x:typing.Union[float,np.ndarray]) -> typing.Union[float,np.ndarray]:
+        # There's probably a way smarter and more efficient way to do this.
         if isinstance(x, float):
             return interp(x)
+        elif isinstance(x, np.ndarray):
+            retval = np.ndarray(x.shape + y_jet_t.shape[2:], dtype=float)
+            for I in vorpy.tensor.multiindex_iterator(x.shape):
+                retval[I] = interp(x[I])
+            return retval
         else:
-            return interp_vec(x)
+            raise TypeError(f'Expected x to be a float or numpy.ndarray, but it was {type(x)}')
 
     return interpolator
 
-def numerical_derivative_two_sided (func:typing.Callable[[float],float], x_0:float) -> typing.Tuple[float,float]:
+def _numerical_derivative_two_sided (func:typing.Callable[[float],float], x_0:float) -> typing.Tuple[float,float]:
     """This is a rather primitive way to compute the derivative, but hey."""
     epsilon = 1.0e-9
     func_x_0 = func(x_0)
@@ -155,11 +159,11 @@ def numerical_derivative_two_sided (func:typing.Callable[[float],float], x_0:flo
     deriv_pos = (func(x_0+epsilon) - func_x_0) / epsilon
     return deriv_neg, deriv_pos
 
-def numerical_derivative (func:typing.Callable[[float],float], x_0:float) -> float:
-    deriv_neg, deriv_pos = numerical_derivative_two_sided(func, x_0)
-    if np.abs(deriv_neg - deriv_pos) > 1.0e-6: # Sort of arbitrary, doesn't take into account magnitudes.
+def _numerical_derivative (func:typing.Callable[[float],float], x_0:float) -> float:
+    deriv_neg, deriv_pos = _numerical_derivative_two_sided(func, x_0)
+    if np.max(np.abs(deriv_neg - deriv_pos)) > 1.0e-6: # Sort of arbitrary, doesn't take into account magnitudes.
         raise ValueError(f'func is not contiuously differentiable; deriv_neg = {deriv_neg}, deriv_pos = {deriv_pos}; x_0 = {x_0}')
-    return np.mean((deriv_neg, deriv_pos))
+    return 0.5*(deriv_neg+deriv_pos)
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
@@ -183,11 +187,11 @@ if __name__ == '__main__':
     linear_interpolator = scipy.interpolate.interp1d(t_v, y_jet_t[:,0])
     cubic_interpolator = cubic_interpolation(t_v, y_jet_t)
 
-    deriv_v = np.array([numerical_derivative(cubic_interpolator, t) for t in t_v])
+    deriv_v = np.array([_numerical_derivative(cubic_interpolator, t) for t in t_v])
     print(f'np.abs(deriv_v - y_jet_t[:,1]) = {np.abs(deriv_v - y_jet_t[:,1])}')
     assert np.all(np.abs(deriv_v - y_jet_t[:,1]) < 1.0e-7)
 
-    if True:
+    if False:
         row_count   = 1
         col_count   = 1
         size        = 20
@@ -215,6 +219,24 @@ if __name__ == '__main__':
         plt.close('all')
         del fig
         del axis_vv
+
+    if True:
+        np.random.seed(42)
+
+        # Test tensor-valued cubic Bezier interpolation
+        t_v = np.cumsum(np.abs(np.random.randn(10)))
+        y_jet_t = np.random.randn(len(t_v),2,2,1)
+
+        cubic_interpolator = cubic_interpolation(t_v, y_jet_t)
+        interp_t_v = np.linspace(t_v[0], t_v[-1], 1000)
+        interp_y_t = cubic_interpolator(interp_t_v)
+
+        deriv_t = np.ndarray((len(t_v),)+(2,1), dtype=float)
+        for i,t in enumerate(t_v):
+            deriv_t[i,...] = _numerical_derivative(cubic_interpolator, t)
+        print(f'deriv_t.shape = {deriv_t.shape}')
+        print(f'np.max(np.abs(deriv_t - y_jet_t[:,1])) = {np.max(np.abs(deriv_t - y_jet_t[:,1]))}')
+        assert np.all(np.abs(deriv_t - y_jet_t[:,1,...]) < 3.0e-7)
 
     sys.exit(0)
 
