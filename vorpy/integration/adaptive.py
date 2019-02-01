@@ -483,8 +483,11 @@ def integrate_vector_field (
         # Need to know which axes index the coordinate portion of y_t in order to use vorpy.apply_along_axes.
         # E.g. if y_t.shape is (2300,2,5), then the coordinate axes are all but the 0th axis; i.e. (1,2).
         y_t_coordinate_axes = tuple(range(1, len(y_t.shape)))
-        # Assign the 1-jet easily by computing the vector field for each y_t value.
-        y_jet_to[:,1,...]   = vorpy.apply_along_axes(vector_field, y_t_coordinate_axes, (y_t,))
+        # Assign the 1-jet easily by computing the vector field for each t_v[i],y_t[i] pair.
+        # Would use vorpy.apply_along_axes here, but it can only handle multiple-valued functions
+        # whose arguments' input axes are the same.
+        for i,(t,y) in enumerate(zip(t_v, y_t)):
+            y_jet_to[i,1,...] = vector_field(t, y)
     else:
         y_t                 = np.array(y_tv)
         y_jet_to            = None
