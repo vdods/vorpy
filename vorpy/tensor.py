@@ -141,7 +141,7 @@ def as_linear_operator (T:np.ndarray) -> np.ndarray:
     operand_shape is the shape of the operand space.
     """
     operand_shape = operand_shape_of(T)
-    operand_dim = vorpy.tensor.dimension_of_shape(operand_shape)
+    operand_dim = dimension_of_shape(operand_shape)
     return T.reshape(operand_dim,operand_dim)
 
 def _positions_of_all_occurrences_of_char (s, c):

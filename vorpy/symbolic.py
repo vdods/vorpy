@@ -322,7 +322,7 @@ def cached_lambdified (function_id, *, function_creator, cache_dirname='lambdifi
 
     return function_module.__dict__[function_id]
 
-def cache_lambdify (*, function_id:str, argument_id:str, replacement_d:typing.Dict[str,str]={}, import_v:typing.List[str]=[], decorator_v:typing.List[str]=[], cache_dirname_p:pathlib.Path='lambdified_cache', verbose:bool=False):
+def cache_lambdify (*, function_id:str, argument_id:str, replacement_d:typing.Dict[str,str]={}, import_v:typing.List[str]=[], decorator_v:typing.List[str]=[], cache_dirname_p:pathlib.Path=pathlib.Path('lambdified_cache'), verbose:bool=False):
     """
     This is a decorator function which makes it easy to obtain cached_lambdified functions.  Example:
 
