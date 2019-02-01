@@ -516,6 +516,7 @@ class KeplerHeisenbergNumerics:
                     'p_theta abs error':p_theta_cq,
                 },
                 controlled_sq_ltee=controlled_sq_ltee,
+                return_y_jet=return_y_jet,
             )
 
             pickle_filename_p.parent.mkdir(parents=True, exist_ok=True)
@@ -844,6 +845,8 @@ class QuadraticCylindricalNumerics(KeplerHeisenbergNumerics):
         return QuadraticCylindricalNumerics.compute_trajectory(*args)
 
 if __name__ == '__main__':
-    qp = EuclideanSymbolics.qp_coordinates()
-    X_H = EuclideanSymbolics.X_H__symbolic(qp)
+    #qp = EuclideanSymbolics.qp_coordinates()
+    #X_H = EuclideanSymbolics.X_H__symbolic(qp)
+    qp = QuadraticCylindricalSymbolics.qp_coordinates()
+    X_H = QuadraticCylindricalSymbolics.X_H__symbolic(qp)
     print(f'X_H:\n{X_H.reshape(-1,1)}')

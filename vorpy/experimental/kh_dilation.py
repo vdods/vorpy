@@ -5,6 +5,7 @@ import pathlib
 import scipy.interpolate
 import typing
 import vorpy
+import vorpy.experimental.bezier
 import vorpy.experimental.kh
 import vorpy.realfunction.piecewiselinear
 
@@ -319,6 +320,35 @@ def plot_trajectories (results_v:typing.Sequence[vorpy.integration.adaptive.Inte
     size        = 6
     fig,axis_vv = plt.subplots(row_count, col_count, squeeze=False, figsize=(size*col_count,size*row_count))
 
+    def compute_collision_time (*, results:vorpy.integration.adaptive.IntegrateVectorFieldResults) -> float:
+        # Don't bother if J is close to zero.
+        J_initial = vorpy.experimental.kh.EuclideanNumerics.J__fast(results.y_t[0])
+        if np.abs(J_initial) < 1.0e-6:
+            return np.nan
+
+        t_v = results.t_v
+        z_v = results.y_t[:,0,2]
+        _,_,z_zero_pos_v = vorpy.realfunction.piecewiselinear.oriented_zeros(z_v, t_v=t_v, orientation_p=(lambda o:o>0))
+
+        print(f'J_initial = {J_initial}, z_zero_pos_v = {z_zero_pos_v}')
+
+        if len(z_zero_pos_v) < 3:
+            print(f'exiting because len(z_zero_pos_v) (which was {len(z_zero_pos_v)}) was < 3')
+            return np.nan
+
+        z_zero_pos_delta_v = np.diff(z_zero_pos_v)
+        lam_v = z_zero_pos_delta_v[1:] / z_zero_pos_delta_v[:-1]
+        lam = np.mean(lam_v)
+
+        # Too close to non-dilating to have a collision
+        if np.abs(lam - 1.0) < 1.0e-3:
+            print(f'exiting because lam (which was {lam}) was too close to 1')
+            return np.nan
+
+        collision_time = z_zero_pos_v[0] + z_zero_pos_delta_v[0] / (1.0 - lam)
+        print(f'lam = {lam}, lam_v stddev: {np.std(lam_v)}, collision_time = {collision_time}')
+        return collision_time
+
     for results in results_v:
         t_v = results.t_v
         qp_v = results.y_t
@@ -326,17 +356,63 @@ def plot_trajectories (results_v:typing.Sequence[vorpy.integration.adaptive.Inte
         p_x_initial = qp_v[0,1,0]
         p_y_initial = qp_v[0,1,1]
 
+        collision_time = compute_collision_time(results=results)
+        if np.isfinite(collision_time):
+            # Assume that J is a "rate" of size / time.  Then with the fact that J is conserved
+            # (assuming that H = 0), then the size must be changing linearly with time.
+            J_initial = vorpy.experimental.kh.EuclideanNumerics.J__fast(results.y_t[0])
+
+            precollision_mask_v = t_v < collision_time
+            precollision_t_v = t_v[precollision_mask_v]
+            size_v = -J_initial * (collision_time - precollision_t_v)
+            print(f'size_v[0] = {size_v[0]}')
+
+            normalized_size_v = (collision_time - precollision_t_v) / (collision_time - precollision_t_v[0])
+
+            axis = axis_vv[1][2]
+            axis.set_title(f'"size"')
+            axis.axhline(0.0, color='black')
+            axis.plot(precollision_t_v, size_v)
+            #axis.plot(precollision_t_v, normalized_size_v)
+            axis.axvline(collision_time)
+
+        def dilation (lam:float, qp:np.ndarray) -> np.ndarray:
+            assert qp.shape == (2,3)
+            retval = np.copy(qp)
+            retval[0,0:2] *= lam
+            retval[0,2]   *= lam**2
+            retval[1,0:2] /= lam
+            retval[1,2]   /= lam**2
+            return retval
+
+        if np.isfinite(collision_time):
+            # Apply a progressive dilation (using sqrt(lam) because lam is based on z)
+            precollision_qp_v = qp_v[precollision_mask_v,...]
+            dilated_precollision_qp_v = np.copy(precollision_qp_v)
+            for i,normalized_size in enumerate(normalized_size_v):
+                dilated_precollision_qp_v[i] = dilation(1.0 / np.sqrt(normalized_size), dilated_precollision_qp_v[i])
+        else:
+            dilated_precollision_qp_v = None
+
         for phase_index in range(2):
             s = 'p_' if phase_index == 1 else ''
 
             axis = axis_vv[phase_index][0]
             axis.set_title(f'initial ({s}x, {s}y) = {(qp_v[0,phase_index,0], qp_v[0,phase_index,1])}\n({s}x(t), {s}y(t))')
             axis.set_aspect(1.0)
-            axis.plot(qp_v[:,phase_index,0], qp_v[:,phase_index,1])
+            if dilated_precollision_qp_v is not None:
+                axis.plot(dilated_precollision_qp_v[:,phase_index,0], dilated_precollision_qp_v[:,phase_index,1])
+            else:
+                axis.plot(qp_v[:,phase_index,0], qp_v[:,phase_index,1])
+            axis.plot([0.0], [0.0], '.', color='black')
 
             axis = axis_vv[phase_index][1]
             axis.set_title(f'initial {s}z = {qp_v[0,phase_index,2]}\n(t, {s}z(t))')
-            axis.plot(t_v, qp_v[:,phase_index,2])
+            if dilated_precollision_qp_v is not None:
+                axis.plot(t_v, dilated_precollision_qp_v[:,phase_index,2])
+            else:
+                axis.plot(t_v, qp_v[:,phase_index,2])
+            axis.plot([0.0], [0.0], '.', color='black')
 
         p_theta_v   = vorpy.apply_along_axes(vorpy.experimental.kh.EuclideanNumerics.p_theta__fast, (1,2), (results.y_t,))
 
@@ -369,9 +445,11 @@ def plot_trajectories_QuadraticCylindrical (results_v:typing.Sequence[vorpy.inte
     for results in results_v:
         t_v         = results.t_v
         qp_v        = results.y_t
+        assert results.y_jet_to is not None
+        qp_jet_t    = results.y_jet_to
 
-        # TODO: Use Bezier interpolation instead
-        qp_interpolator = scipy.interpolate.interp1d(t_v, qp_v, axis=0)
+        #qp_interpolator = scipy.interpolate.interp1d(t_v, qp_v, axis=0)
+        qp_interpolator = vorpy.experimental.bezier.cubic_interpolation(t_v, qp_jet_t)
         qp_initial  = qp_v[0]
 
         p_R_initial = qp_initial[1,0]
@@ -485,8 +563,17 @@ def plot_trajectories_QuadraticCylindrical (results_v:typing.Sequence[vorpy.inte
 
         w_sector_middle_line = np.vectorize(lambda s:(s - s_collision) * w_sector_middle_slope)
 
-        # TODO: Use Bezier interpolation instead
-        scale_interpolator  = scipy.interpolate.interp1d(theta_local_max_s_v, r_segment_v)
+        if len(r_segment_v) >= 2:
+            r_segment_jet_t         = np.ndarray((len(r_segment_v),2), dtype=float)
+            r_segment_jet_t[:,0]    = r_segment_v
+            r_segment_jet_t[0,1]    = (r_segment_v[1] - r_segment_v[0]) / (theta_local_max_s_v[1] - theta_local_max_s_v[0])
+            r_segment_jet_t[-1,1]   = (r_segment_v[-1] - r_segment_v[-2]) / (theta_local_max_s_v[-1] - theta_local_max_s_v[-2])
+            r_segment_jet_t[1:-1,1] = (r_segment_v[2:] - r_segment_v[:-2]) / (theta_local_max_s_v[2:] - theta_local_max_s_v[:-2])
+            scale_interpolator      = vorpy.experimental.bezier.cubic_interpolation(theta_local_max_s_v, r_segment_jet_t)
+            print('USING CUBIC INTERPOLATION FOR SCALE')
+        else:
+            scale_interpolator      = scipy.interpolate.interp1d(theta_local_max_s_v, r_segment_v)
+            print('USING LINEAR INTERPOLATION FOR SCALE')
 
         unwrapped_mask_v    = (t_v >= theta_local_max_s_v[0]) & (t_v <= theta_local_max_s_v[-1])
         unwrapped_s_v       = t_v[unwrapped_mask_v]
@@ -509,6 +596,17 @@ def plot_trajectories_QuadraticCylindrical (results_v:typing.Sequence[vorpy.inte
 
         euclidean_unwrapped_qp_v = vorpy.apply_along_axes(vorpy.experimental.kh.QuadraticCylindricalNumerics.qp_to_Euclidean__fast, (1,2), (unwrapped_qp_v,))
 
+        # Compute a trajectory using the unwrapped initial condition
+        transformed_results = vorpy.experimental.kh.QuadraticCylindricalNumerics.compute_trajectory(
+            pathlib.Path(str(plot_p) + '.transformed.pickle'),
+            unwrapped_qp_v[0],
+            t_final=100.0,
+            solution_sheet=0,
+            return_y_jet=False,
+        )
+
+        euclidean_transformed_qp_v = vorpy.apply_along_axes(vorpy.experimental.kh.QuadraticCylindricalNumerics.qp_to_Euclidean__fast, (1,2), (transformed_results.y_t,))
+
         for phase_index in range(2):
             s = 'p_' if phase_index == 1 else ''
 
@@ -518,12 +616,14 @@ def plot_trajectories_QuadraticCylindrical (results_v:typing.Sequence[vorpy.inte
             axis.plot(euclidean_qp_v[:,phase_index,0], euclidean_qp_v[:,phase_index,1])
             if p_R_initial != 0.0:
                 axis.plot(euclidean_unwrapped_qp_v[:,phase_index,0], euclidean_unwrapped_qp_v[:,phase_index,1])
+                axis.plot(euclidean_transformed_qp_v[:,phase_index,0], euclidean_transformed_qp_v[:,phase_index,1], color='green')
 
             axis = axis_vv[phase_index][1]
             axis.set_title(f'initial {s}R = {qp_v[0,phase_index,0]}\n(t, {s}R(t))')
             axis.plot(t_v, qp_v[:,phase_index,0])
             if p_R_initial != 0.0:
                 axis.plot(unwrapped_t_v, unwrapped_qp_v[:,phase_index,0])
+                axis.plot(transformed_results.t_v, transformed_results.y_t[:,phase_index,0], color='green')
             if phase_index == 0:
                 axis.axhline(0, color='black')
                 # Draw the lines defining the sector that bounds the curve (t,R(t))
@@ -540,12 +640,14 @@ def plot_trajectories_QuadraticCylindrical (results_v:typing.Sequence[vorpy.inte
             axis.plot(t_v, qp_v[:,phase_index,1])
             if p_R_initial != 0.0:
                 axis.plot(unwrapped_t_v, unwrapped_qp_v[:,phase_index,1])
+                axis.plot(transformed_results.t_v, transformed_results.y_t[:,phase_index,1], color='green')
 
             axis = axis_vv[phase_index][3]
             axis.set_title(f'initial {s}w = {qp_v[0,phase_index,2]}\n(t, {s}w(t))')
             axis.plot(t_v, qp_v[:,phase_index,2])
             if p_R_initial != 0.0:
                 axis.plot(unwrapped_t_v, unwrapped_qp_v[:,phase_index,2])
+                axis.plot(transformed_results.t_v, transformed_results.y_t[:,phase_index,2], color='green')
             if phase_index == 0:
                 axis.axhline(0, color='black')
                 # Draw the lines defining the sector that bounds the curve (t,w(t))
@@ -606,12 +708,62 @@ def unwrap_dilating_trajectory (p_R_initial:float, p_theta_initial:float, base_d
         qp_initial,
         t_final=100.0,
         solution_sheet=0,
+        return_y_jet=True,
     )
 
     plot_p = base_dir_p / f'qp.p_R={p_R_initial}_p_theta={p_theta_initial}.png'
     plot_trajectories_QuadraticCylindrical([results], plot_p)
 
+#def plot_related_trajectories (*, p_theta_initial:float, J_initial_v:typing.List[float], plot_dir_p:pathlib.Path):
+def plot_related_trajectories (*, x_initial:float, p_x_initial_v:typing.List[float], p_y_initial:float, plot_dir_p:pathlib.Path):
+    solution_sheet = 0
+
+    #def compute_qp_initial (*, p_theta_initial:float, J_initial:float) -> np.ndarray:
+        ## Use Euclidean coordinates
+        #x_initial = 1.0
+        #y_initial = 0.0
+        #z_initial = 0.0
+        #p_x_initial = J_initial
+        #p_y_initial = p_theta_initial
+        ## TODO: Plot both sheets
+        #if solution_sheet == 0:
+            #p_z_initial = -2.0*p_theta_initial + np.sqrt(1.0/np.pi - 4.0*J_initial**2)
+        #else:
+            #p_z_initial = -2.0*p_theta_initial - np.sqrt(1.0/np.pi - 4.0*J_initial**2)
+
+        #qp_initial = np.array([
+            #[x_initial, y_initial, z_initial],
+            #[p_x_initial, p_y_initial, p_z_initial],
+        #])
+
+        #H_initial = vorpy.experimental.kh.EuclideanNumerics.H__fast(qp_initial)
+        #assert np.abs(H_initial) < 1.0e-14
+
+        #return qp_initial
+
+    plot_dir_p.mkdir(parents=True, exist_ok=True)
+    t_final = 200.0
+    results_v = []
+    #for J_initial in J_initial_v:
+    for p_x_initial in p_x_initial_v:
+        #qp_initial = compute_qp_initial(p_theta_initial=p_theta_initial, J_initial=J_initial)
+        qp_initial = vorpy.experimental.kh.EuclideanNumerics.qp_constrained_by_H__fast(np.array([x_initial, 0.0, 0.0, p_x_initial, p_y_initial, 0.0]))[0]
+
+        results = vorpy.experimental.kh.EuclideanNumerics.compute_trajectory(
+            #plot_dir_p / f'p_theta={p_theta_initial}.J={J_initial}.pickle',
+            plot_dir_p / f'x={x_initial}.p_x={p_x_initial}.p_y={p_y_initial}.pickle',
+            qp_initial,
+            t_final=t_final,
+            solution_sheet=solution_sheet, # This isn't used in the computation, it's just stored in the pickle file
+            return_y_jet=False,
+        )
+        results_v.append(results)
+
+    plot_trajectories(results_v=results_v, base_dir_p=plot_dir_p)
+
 if __name__ == '__main__':
+    import sys
+
     #for p_y_initial in np.linspace(0.05, 0.4, 20):
         #plot_J_equal_zero_extrapolated_trajectory(p_y_initial)
 
@@ -622,11 +774,36 @@ if __name__ == '__main__':
     #for p_y_initial in np.linspace(0.05, 0.4, 20):
         #transform_J(p_y_initial, other_trajectory_p_x_initial)
 
-    base_dir_p = pathlib.Path('unwrap.04')
-    #for p_R_initial,p_theta_initial in itertools.product(np.linspace(-1.0/64, 1.0/64, 3), np.linspace(0.05, 0.4, 2)):
-    for p_R_initial,p_theta_initial in itertools.product(np.linspace(-1.0/64, 0.0, 2, endpoint=False), np.linspace(0.05, 0.4, 2)):
-        try:
-            unwrap_dilating_trajectory(p_R_initial, p_theta_initial, base_dir_p)
-        except ValueError as e:
-            print(f'Caught {e}')
-            pass
+    #base_dir_p = pathlib.Path('unwrap.06')
+    ##for p_R_initial,p_theta_initial in itertools.product(np.linspace(-1.0/64, 1.0/64, 3), np.linspace(0.05, 0.4, 2)):
+    #for p_R_initial,p_theta_initial in itertools.product(np.linspace(-1.0/64, 0.0, 2, endpoint=False), np.linspace(0.05, 0.4, 2)):
+        #try:
+            #unwrap_dilating_trajectory(p_R_initial, p_theta_initial, base_dir_p)
+        #except ValueError as e:
+            #print(f'Caught {e}')
+            #pass
+
+    #J_bound     = 0.0625
+    ##J_bound     = 0.25
+    #J_count     = 9
+    ##J_initial_v = np.linspace(-J_bound, 0.0, J_count//2, endpoint=False).tolist() + np.linspace(0.0, J_bound, (J_count+1)//2).tolist()
+    #J_initial_v = np.linspace(-J_bound, 0.0, J_count).tolist()
+    #plot_related_trajectories(
+        #p_theta_initial=0.2,
+        #J_initial_v=J_initial_v,
+        #plot_dir_p=pathlib.Path('related.01'),
+    #)
+
+    print(f'X_H:\n{vorpy.experimental.kh.QuadraticCylindricalSymbolics.X_H__symbolic(vorpy.experimental.kh.QuadraticCylindricalSymbolics.qp_coordinates()).reshape(6,1)}')
+    sys.exit(0)
+
+    p_x_bound     = 0.0625
+    #p_x_bound     = 0.25
+    p_x_count     = 9
+    p_x_initial_v = np.linspace(-p_x_bound, 0.0, p_x_count).tolist()
+    plot_related_trajectories(
+        x_initial=2.0,
+        p_x_initial_v=p_x_initial_v,
+        p_y_initial=0.2,
+        plot_dir_p=pathlib.Path('related.01'),
+    )
