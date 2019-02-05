@@ -10,6 +10,12 @@ import vorpy.symbolic
 def simplified (arg:np.ndarray) -> np.ndarray:
     return np.array(sp.simplify(arg)).reshape(arg.shape)
 
+def substitution (expr:typing.Any, point:np.array, value:np.array, *, simplify:bool=True) -> np.ndarray:
+    retval = np.array(sp.Subs(expr, point.reshape(-1), value.reshape(-1)).doit()).reshape(np.shape(expr))
+    if simplify:
+        retval = simplified(retval)
+    return retval
+
 def prefixed_symbolic_tensor (prefix:str, symbol__t:np.ndarray) -> np.ndarray:
     """
     Creates a new symbolic tensor where each new symbol has assumptions corresponding to
@@ -229,7 +235,7 @@ class Chart:
     def make_coords (self, value:np.ndarray) -> Coords:
         """This constructs a correctly typed Coords from a raw np.ndarray.  The shape must match self.coords_shape."""
         if value.shape != self.coords_shape:
-            raise TypeError(f'Expected coords.shape (which was {coords.shape}) to be self.coords_shape (which was {self.coords_shape})')
+            raise TypeError(f'Expected value.shape (which was {value.shape}) to be self.coords_shape (which was {self.coords_shape})')
         return self.coords_class(value, chart=self)
 
     def make_coords_uninitialized (self, *, dtype:typing.Any) -> Coords:
@@ -288,7 +294,10 @@ class BundleChart(Chart):
         # TODO: Make this an actual Morphism?
         self.base_chart.verify_chart_type(base, coords_name='base')
         self.fiber_chart.verify_chart_type(fiber, coords_name='fiber')
-        return self.make_coords(np.concatenate((base.value.reshape(-1), fiber.value.reshape(-1))))
+        if self._parallel_storage:
+            return self.make_coords(np.array([base.value, fiber.value]))
+        else:
+            return self.make_coords(np.concatenate((base.value.reshape(-1), fiber.value.reshape(-1))))
 
     def base_projection (self, coords:BundleCoords) -> Coords:
         # TODO: Make this an actual Morphism?
@@ -458,7 +467,7 @@ class CotangentBundleChart(VectorBundleChart):
 
 class TensorBundleChart(VectorBundleChart):
     def __init__ (self, *vector_bundle_chart__v:VectorBundleChart, fiber_symbolic_coords:np.ndarray) -> None:
-        print(f'TensorBundleChart(vector_bundle_chart__v = {vector_bundle_chart__v})')
+        #print(f'TensorBundleChart(vector_bundle_chart__v = {vector_bundle_chart__v})')
 
         if len(vector_bundle_chart__v) == 0:
             raise NotImplementedError(f'0-tensor bundles, while mathematically valid, are not yet implemented')
@@ -631,9 +640,11 @@ class Isomorphism(Morphism):
                 print(f'    {solution}')
             if len(solution_v) != 1:
                 raise ValueError(f'sympy.solve did not automatically find a unique solution to the inverse coordinate change; inverse_evaluator__o should be specified to define the inverse explicitly..  solution_v = {solution_v}')
+            solution = np.array(solution_v[0]).reshape(x.value.shape)
 
             def inverse_evaluator_ (coords:Coords) -> Coords:
-                return codomain.make_coords(np.array(sp.Subs(solution_v[0], y.value, coords.value).doit()).reshape(x.value.shape))
+                #return codomain.make_coords(np.array(sp.Subs(solution_v[0], y.value, coords.value).doit()).reshape(x.value.shape))
+                return codomain.make_coords(substitution(solution, y.value, coords.value))
 
             self.inverse_evaluator = inverse_evaluator_
 
@@ -694,7 +705,7 @@ def jacobian (morphism:Morphism) -> TensorBundleSection:
         CotangentFunctor_ob(morphism.domain),
         fiber_symbolic_coords=vorpy.symbolic.tensor('J', morphism.codomain.coords_shape + morphism.domain.coords_shape),
     )
-    print(f'jacobian; linear_morphism_bundle_chart = {linear_morphism_bundle_chart}')
+    #print(f'jacobian; linear_morphism_bundle_chart = {linear_morphism_bundle_chart}')
 
     # Compute the Jacobian and define the fiber_evaluator for it.
 
@@ -705,7 +716,8 @@ def jacobian (morphism:Morphism) -> TensorBundleSection:
     assert J_x.shape == linear_morphism_bundle_chart.fiber_chart.coords_shape
 
     def jacobian_fiber_evaluator (base:Coords) -> Coords:
-        return linear_morphism_bundle_chart.fiber_chart.make_coords(simplified(np.array(sp.Subs(J_x, x.value, base.value).doit()).reshape(linear_morphism_bundle_chart.fiber_chart.coords_shape)))
+        #return linear_morphism_bundle_chart.fiber_chart.make_coords(simplified(np.array(sp.Subs(J_x, x.value, base.value).doit()).reshape(linear_morphism_bundle_chart.fiber_chart.coords_shape)))
+        return linear_morphism_bundle_chart.fiber_chart.make_coords(substitution(J_x, x.value, base.value))
 
     retval = TensorBundleSection(
         name=f'Jacobian({morphism})',
@@ -773,6 +785,8 @@ def CotangentFunctor_ob (base_chart:Chart, *, fiber_symbolic_coords__o:typing.Op
     #return TangentBundleIsomorphism.induced(arg)
 
 # TODO: Make a pullback functor which operates on bundles and sections.
+
+# TODO: Make a dual functor.  This would make Cotangent stuff unnecessary.
 
 if __name__ == '__main__':
     R3 = Chart(
@@ -944,3 +958,114 @@ if __name__ == '__main__':
     print(f'change of coords {T_star_QC} -> {T_star_R3}:')
     product = simplified(np.dot(p_QC.fiber().value, J.fiber().value))
     print(f'{product}')
+    print()
+
+    LS = Chart(
+        name='LS', # log-size cylindrical coordinates, where s = log(R^2 + w^2)/4 and u = arg(R, w)
+        coords_shape=(3,),
+        symbolic_coords=np.array([sp.Symbol('s', real=True), sp.Symbol('theta', real=True), sp.Symbol('u', real=True)]),
+    )
+    print(f'LS = {LS}')
+    print(f'repr(LS) = {repr(LS)}')
+    print()
+
+    def evaluator_QC_to_LS (v:Coords) -> Coords:
+        R, theta, w = v.value
+        s = sp.log(R**2 + w**2) / 4
+        u = sp.atan2(w, R)
+        return LS.make_coords(simplified(np.array([s, theta, u])))
+
+    def inverse_evaluator_QC_to_LS (c:Coords) -> Coords:
+        s, theta, u = c.value
+        R = sp.exp(2*s)*sp.cos(u)
+        w = sp.exp(2*s)*sp.sin(u)
+        return QC.make_coords(simplified(np.array([R, theta, w])))
+
+    QC_to_LS = Isomorphism(
+        name='QC_to_LS',
+        domain=QC,
+        codomain=LS,
+        # TODO: Make Coords inherit np.ndarray for convenience
+        evaluator=evaluator_QC_to_LS,
+        inverse_evaluator__o=inverse_evaluator_QC_to_LS,
+    )
+    print(f'QC_to_LS = {QC_to_LS}')
+    print(f'repr(QC_to_LS) = {repr(QC_to_LS)}')
+    print()
+
+    ls = LS.symbolic_coords
+    LS_to_QC = QC_to_LS.inverse()
+    print(f'LS_to_QC = {LS_to_QC}')
+    print(f'LS_to_QC({ls.value}) = {LS_to_QC(ls)}')
+    print(f'QC_to_LS(LS_to_QC({ls.value})) = {simplified(QC_to_LS(LS_to_QC(ls)).value)}')
+    print()
+
+    T_star_LS = CotangentFunctor_ob(LS)
+    p_LS = T_star_LS.symbolic_coords
+    J = jacobian(QC_to_LS)(LS_to_QC(p_LS.base()))
+    print(f'J:\n{J}')
+    print(f'change of coords {T_star_LS} -> {T_star_QC}:')
+    product = simplified(np.dot(p_LS.fiber().value, J.fiber().value))
+    print(f'{product}')
+    print()
+
+    J = jacobian(LS_to_QC)(QC_to_LS(p_QC.base()))
+    print(f'J:\n{J}')
+    print(f'change of coords {T_star_QC} -> {T_star_LS}:')
+    product = simplified(np.dot(p_QC.fiber().value, J.fiber().value))
+    print(f'{product}')
+    print()
+
+    qp_R3           = T_star_R3.symbolic_coords
+    q_R3            = qp_R3.base()
+    p_R3            = qp_R3.fiber()
+    x,   y,   z     = q_R3.value
+    p_x, p_y, p_z   = p_R3.value
+    P_x_R3          = p_x - y*p_z/2
+    P_y_R3          = p_y + x*p_z/2
+    H_R3            = (P_x_R3**2 + P_y_R3**2)/2 - 1/(8*sp.pi*sp.sqrt((x**2 + y**2)**2 + 16*z**2))
+    J_R3            = x*p_x + y*p_y + 2*z*p_z
+
+    # TODO: Make ScalarFunction (i.e. Chart -> Real) and PathFunction (i.e. Real -> Chart)
+
+    print(f'H_R3 = {H_R3}')
+    print(f'J_R3 = {J_R3}')
+    print()
+
+    J_R3_to_QC = jacobian(R3_to_QC)
+
+    qp_QC = T_star_QC.symbolic_coords
+    # TODO: This should really be handled by the induced change of coords on cotangent bundle as
+    # a vector bundle isomorphism.
+    q_R3_from_QC = QC_to_R3(qp_QC.base())
+    p_R3_from_QC = T_star_R3.fiber_chart.make_coords(np.dot(qp_QC.fiber().value, J_R3_to_QC(q_R3_from_QC).fiber().value))
+    qp_R3_from_QC = T_star_R3.make_coords_composed(q_R3_from_QC, p_R3_from_QC)
+
+    print(f'qp_QC:\n{qp_QC}')
+    print(f'qp_R3_from_QC:\n{qp_R3_from_QC}')
+    print()
+
+    H_QC = substitution(H_R3, qp_R3.value, qp_R3_from_QC.value)
+    J_QC = substitution(J_R3, qp_R3.value, qp_R3_from_QC.value)
+
+    print(f'H_QC = {H_QC}')
+    print(f'J_QC = {J_QC}')
+    print()
+
+    J_QC_to_LS = jacobian(QC_to_LS)
+
+    qp_LS = T_star_LS.symbolic_coords
+    q_QC_from_LS = LS_to_QC(qp_LS.base())
+    p_QC_from_LS = T_star_QC.fiber_chart.make_coords(np.dot(qp_LS.fiber().value, J_QC_to_LS(q_QC_from_LS).fiber().value))
+    qp_QC_from_LS = T_star_QC.make_coords_composed(q_QC_from_LS, p_QC_from_LS)
+
+    print(f'qp_LS:\n{qp_LS}')
+    print(f'qp_QC_from_LS:\n{qp_QC_from_LS}')
+    print()
+
+    H_LS = substitution(H_QC, qp_QC.value, qp_QC_from_LS.value)
+    J_LS = substitution(J_QC, qp_QC.value, qp_QC_from_LS.value)
+
+    print(f'H_LS = {H_LS}')
+    print(f'J_LS = {J_LS}')
+    print()
