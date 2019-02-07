@@ -119,7 +119,7 @@ def tautological_one_form (qp:np.ndarray) -> np.ndarray:
 
     TODO: Talk about pullback-canceling property
     """
-    vorpy.tensor.validate_darboux_coordinates_quantity_or_raise(qp, quantity_name='qp')
+    validate_darboux_coordinates_quantity_or_raise(qp, quantity_name='qp')
     # Make a copy of qp so the shape and dtype of the return value are correct.
     retval = np.copy(qp)
     # Put the p[i] coordinates in the dq[i] slots.
@@ -338,8 +338,8 @@ def symplectomorphicity_condition (A:np.ndarray, *, dtype:typing.Any, return_as_
     # Square matrix operating on vectors having shape (2,n)
     A_darboux = A.reshape(2,n,2,n)
 
-    omega_abstract = vorpy.symplectic.canonical_symplectic_form_abstract(dtype=dtype)
-    omega = vorpy.symplectic.canonical_symplectic_form(operand_shape, dtype=dtype)
+    omega_abstract = canonical_symplectic_form_abstract(dtype=dtype)
+    omega = canonical_symplectic_form(operand_shape, dtype=dtype)
     omega_darboux = omega.reshape(2,n,2,n)
     # The condition is that the pullback of omega by A is omega.
     condition_darboux = vorpy.tensor.contract('ij,ikpq,jkxy', omega_abstract, A_darboux, A_darboux, dtype=dtype) - omega_darboux
