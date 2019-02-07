@@ -4,7 +4,9 @@ import numpy as np
 import sympy as sp
 import textwrap
 import typing
+import vorpy.experimental.require as require
 import vorpy.symbolic
+import vorpy.symplectic
 
 # Convenience function because sympy's simplify function doesn't preserve the input type
 def simplified (arg:np.ndarray) -> np.ndarray:
@@ -229,7 +231,7 @@ class Chart:
 
     def verify_chart_type (self, coords:Coords, *, coords_name:str='coords') -> None:
         """Will raise if coords.chart is not equal to self, otherwise will do nothing."""
-        if coords.chart is not self:
+        if coords.chart is not self and coords.chart != self:
             raise TypeError(f'{coords_name}.chart (which was {coords.chart}) was expected to be {self}')
 
     def make_coords (self, value:np.ndarray) -> Coords:
@@ -247,10 +249,15 @@ class Chart:
     def __str__ (self) -> str:
         return self.name
 
+    def __eq__ (self, other:'Chart') -> bool:
+        # It's not clear if the comparison of symbolic_coords is appropriate.  Use it for now,
+        # and only consider changing it if it causes a problem.
+        return self.name == other.name and self.dimension == other.dimension and self.coords_shape == other.coords_shape and self.coords_class == other.coords_class and np.all(self.symbolic_coords.value == other.symbolic_coords.value)
+
 class BundleChart(Chart):
     """Represents a trivialized chart (i.e. direct product of base and fiber charts) for a [fiber] bundle."""
 
-    def __init__ (self, *, name:str, base_chart:Chart, fiber_chart:Chart, coords_class=typing.Any) -> None:
+    def __init__ (self, *, name:str, base_chart:Chart, fiber_chart:Chart, coords_class:typing.Any=BundleCoords) -> None:
         if not issubclass(coords_class, BundleCoords):
             raise TypeError(f'Expected coords_class (which was {coords_class}) to be a subclass of {BundleCoords}')
 
@@ -317,6 +324,9 @@ class BundleChart(Chart):
             # Have to slice and reshape the linear storage.
             return self.fiber_chart.make_coords(coords.value[self.base_chart.dimension:].reshape(self.fiber_chart.coords_shape))
 
+    def __eq__ (self, other:'BundleChart') -> bool:
+        return Chart.__eq__(self, other) and self.base_chart == other.base_chart and self.fiber_chart == other.fiber_chart
+
 class VectorBundleChart(BundleChart):
     """Represents a trivialized chart (i.e. direct product of base and fiber charts) for a vector bundle."""
 
@@ -347,6 +357,10 @@ class VectorBundleChart(BundleChart):
         assert isinstance(retval, VectorBundleCoords) # sanity check
         return typing.cast(VectorBundleCoords, retval)
 
+    # Type-specific overload
+    def __eq__ (self, other:'VectorBundleChart') -> bool:
+        return BundleChart.__eq__(self, other)
+
 class TangentBundleChart(VectorBundleChart):
     """Represents a trivialized chart (i.e. direct product of base and fiber charts) for a tangent bundle."""
 
@@ -356,7 +370,7 @@ class TangentBundleChart(VectorBundleChart):
             raise TypeError(f'Expected base_chart.coords_shape (which was {base_chart.coords_shape}) to be equal to fiber_chart.coords_shape (which was {fiber_chart.coords_shape})')
 
         # TODO: Maybe make some bool attribute indicating if this TangentBundleChart was induced by the base chart.
-        if fiber_chart.name == '%Induced%':
+        if fiber_chart.name == f'InducedTangentBundleFiberOn({base_chart.name})':
             name                    = f'T({base_chart.name})'
         else:
             name                    = f'T({base_chart.name}, fiber={fiber_chart.name})'
@@ -384,6 +398,10 @@ class TangentBundleChart(VectorBundleChart):
         assert isinstance(retval, TangentBundleCoords) # sanity check
         return typing.cast(TangentBundleCoords, retval)
 
+    # Type-specific overload
+    def __eq__ (self, other:'TangentBundleChart') -> bool:
+        return VectorBundleChart.__eq__(self, other)
+
     @staticmethod
     def induced (base_chart:Chart, *, fiber_symbolic_coords__o:typing.Optional[np.ndarray]=None) -> 'TangentBundleChart':
         """
@@ -399,7 +417,7 @@ class TangentBundleChart(VectorBundleChart):
             fiber_symbolic_coords = fiber_symbolic_coords__o
 
         fiber_chart = Chart(
-            name='%Induced%', # Sentinel name used in the name of the Chart
+            name=f'InducedTangentBundleFiberOn({base_chart.name})', # Sentinel name used in the name of the Chart
             coords_shape=base_chart.coords_shape,
             symbolic_coords=fiber_symbolic_coords,
             coords_class=base_chart.coords_class,
@@ -415,7 +433,7 @@ class CotangentBundleChart(VectorBundleChart):
             raise TypeError(f'Expected base_chart.coords_shape (which was {base_chart.coords_shape}) to be equal to fiber_chart.coords_shape (which was {fiber_chart.coords_shape})')
 
         # TODO: Maybe make some bool attribute indicating if this CotangentBundleChart was induced by the base chart.
-        if fiber_chart.name == '%Induced%':
+        if fiber_chart.name == f'InducedCotangentBundleFiberOn({base_chart.name})':
             name                    = f'T^{{*}}({base_chart.name})'
         else:
             name                    = f'T^{{*}}({base_chart.name}, fiber={fiber_chart.name})'
@@ -443,6 +461,10 @@ class CotangentBundleChart(VectorBundleChart):
         assert isinstance(retval, CotangentBundleCoords) # sanity check
         return typing.cast(CotangentBundleCoords, retval)
 
+    # Type-specific overload
+    def __eq__ (self, other:'CotangentBundleChart') -> bool:
+        return VectorBundleChart.__eq__(self, other)
+
     @staticmethod
     def induced (base_chart:Chart, *, fiber_symbolic_coords__o:typing.Optional[np.ndarray]=None) -> 'CotangentBundleChart':
         """
@@ -458,7 +480,7 @@ class CotangentBundleChart(VectorBundleChart):
             fiber_symbolic_coords = fiber_symbolic_coords__o
 
         fiber_chart = Chart(
-            name='%Induced%', # Sentinel name used in the name of the Chart
+            name=f'InducedCotangentBundleFiberOn({base_chart.name})', # Sentinel name used in the name of the Chart
             coords_shape=base_chart.coords_shape,
             symbolic_coords=fiber_symbolic_coords,
             coords_class=base_chart.coords_class,
@@ -496,6 +518,10 @@ class TensorBundleChart(VectorBundleChart):
     def factor (self, index:int) -> VectorBundleChart:
         return self.vector_bundle_chart__v[index]
 
+    # Type-specific overload
+    def __eq__ (self, other:'TensorBundleChart') -> bool:
+        return VectorBundleChart.__eq__(self, other) and self.vector_bundle_chart__v == other.vector_bundle_chart__v
+
 class PullbackBundleChart(BundleChart):
     def __init__ (self, *, pullback_morphism:'Morphism', target_bundle_chart:BundleChart, coords_class=PullbackBundleCoords) -> None:
         if pullback_morphism.codomain != target_bundle_chart.base_chart:
@@ -530,6 +556,7 @@ class PullbackBundleChart(BundleChart):
 
     # Type-specific overload
     def make_coords_composed (self, base:Coords, fiber:Coords) -> PullbackBundleCoords:
+        self.target_bundle_chart.fiber_chart.verify_chart_type(fiber)
         retval = BundleChart.make_coords_composed(self, base, fiber)
         self.verify_chart_type(retval, coords_name='retval')
         assert isinstance(retval, PullbackBundleCoords) # sanity check
@@ -537,6 +564,10 @@ class PullbackBundleChart(BundleChart):
 
     def target_projection (self, coords:PullbackBundleCoords) -> BundleCoords:
         return self.target_bundle_chart.make_coords_composed(self.pullback_morphism(coords.base()), coords.fiber())
+
+    # Type-specific overload
+    def __eq__ (self, other:'PullbackBundleChart') -> bool:
+        return BundleChart.__eq__(self, other) and self.pullback_morphism == other.pullback_morphism and self.target_bundle_chart == other.target_bundle_chart
 
 class PullbackVectorBundleChart(PullbackBundleChart, VectorBundleChart):
     # This is just a type-specific override.
@@ -561,6 +592,7 @@ class PullbackVectorBundleChart(PullbackBundleChart, VectorBundleChart):
 
     # Type-specific overload
     def make_coords_composed (self, base:Coords, fiber:Coords) -> PullbackVectorBundleCoords:
+        self.target_bundle_chart.fiber_chart.verify_chart_type(fiber)
         retval = PullbackBundleChart.make_coords_composed(self, base, fiber)
         self.verify_chart_type(retval, coords_name='retval')
         assert isinstance(retval, PullbackVectorBundleCoords) # sanity check
@@ -575,6 +607,10 @@ class PullbackVectorBundleChart(PullbackBundleChart, VectorBundleChart):
         retval = PullbackBundleChart.target_projection(self, coords)
         assert isinstance(retval, VectorBundleCoords)
         return retval
+
+    # Type-specific overload
+    def __eq__ (self, other:'PullbackVectorBundleChart') -> bool:
+        return PullbackBundleChart.__eq__(self, other) and VectorBundleChart.__eq__(self, other)
 
 class Morphism:
     """Morphism in the category of coordinatized manifolds."""
@@ -603,6 +639,17 @@ class Morphism:
 
     def __str__ (self) -> str:
         return self.name
+
+    def __eq__ (self, other:'Morphism') -> bool:
+        """Equal iff domain and codomain match and the evaluation produces the same thing on the domain chart's symbolic_coords."""
+
+        if self.domain != other.domain or self.codomain != other.codomain:
+            return False
+
+        x = self.domain.symbolic_coords
+        self_x = self(x)
+        other_x = other(x)
+        return self_x == other_x
 
 class Isomorphism(Morphism):
     """Isomorphism in the category of coordinatized manifolds."""
@@ -648,6 +695,12 @@ class Isomorphism(Morphism):
 
             self.inverse_evaluator = inverse_evaluator_
 
+    def evaluate_inverse (self, coords:Coords) -> Coords:
+        self.codomain.verify_chart_type(coords, coords_name='coords')
+        retval = self.inverse_evaluator(coords)
+        self.domain.verify_chart_type(retval, coords_name=f'return value of inverse_evaluator')
+        return retval
+
     def inverse (self) -> 'Isomorphism':
         return Isomorphism(
             name=f'{self.name}^{{-1}}',
@@ -656,6 +709,26 @@ class Isomorphism(Morphism):
             evaluator=self.inverse_evaluator,
             inverse_evaluator__o=self.evaluator,
         )
+
+    def __eq__ (self, other:'Isomorphism') -> bool:
+        """Same as Morphism.__eq__ but also checks inverse."""
+
+        if not Morphism.__eq__(self, other):
+            return False
+
+        y = self.codomain.symbolic_coords
+        self_y = self.evaluate_inverse(y)
+        other_y = other.evaluate_inverse(y)
+        return self_y == other_y
+
+def identity_isomorphism (chart:Chart) -> Isomorphism:
+    return Isomorphism(
+        name=f'Identity_{{{chart}}}',
+        domain=chart,
+        codomain=chart,
+        evaluator=lambda x:x,
+        inverse_evaluator__o=lambda x:y,
+    )
 
 class BundleSection(Morphism):
     def __init__ (self, *, name:str, bundle_chart:BundleChart, fiber_evaluator:typing.Callable[[Coords],Coords]) -> None:
@@ -728,45 +801,353 @@ def jacobian (morphism:Morphism) -> TensorBundleSection:
     assert retval.domain == morphism.domain
     return retval
 
-#class VectorBundleMorphism(Morphism):
+class BundleMorphism(Morphism):
+    """
+    Let F denote the vector bundle morphism and let f denote the base morphism.
+    The following diagram should commute.
+
+             domain    -- F -->    codomain
+                |                     |
+                |                     |
+            baseproj              baseproj
+                |                     |
+                V                     V
+           domain.base -- f --> codomain.base
+    """
+
+    #def __init__ (self, morphism:Morphism) -> None:
+        #require.is_instance(morphism.domain, BundleChart)
+        #require.is_instance(morphism.codomain, BundleChart)
+
+        #Morphism.__init__(self, domain=morphism.domain, codomain=morphism.codomain, evaluator=morphism.evaluator)
+
+        #x = morphism.domain.symbolic_coords
+        #y = morphism(x).base()
+        ## Verify that there exists a base morphism (i.e. the base projection of the morphism's image
+        ## produces depending only on the base of the domain).
+        #assert np.all(vorpy.symbolic.differential(y.value, x.fiber().value) == 0)
+
+        #base_morphism_domain = morphism.domain.base_chart
+        #base_morphism_codomain = morphism.codomain.base_chart
+
+        #def base_morphism_evaluator (coords:Coords) -> Coords:
+            #return base_morphism_codomain.make_coords(substitute(y.value, x.base().value, coords.value))
+
+        #self.base_morphism = Morphism(
+            #name=f'BaseMorphismOf({morphism.name})',
+            #domain=base_morphism_domain,
+            #codomain=base_morphism_codomain,
+            #evaluator=base_morphism_evaluator,
+        #)
+
+        #fiber_morphism_domain = morphism.domain
+        #fiber_morphism_codomain = morphism.codomain.fiber_chart
+
+        #def fiber_morphism_evaluator (bundle_coords:BundleCoords) -> Coords:
+            #return morphism(bundle_coords).fiber()
+
+        #self.fiber_morphism = Morphism(
+            #name=f'FiberMorphismOf({morphism.name})',
+            #domain=fiber_morphism_domain,
+            #codomain=fiber_morphism_codomain,
+            #evaluator=fiber_morphism_evaluator,
+        #)
+
+    def __init__ (
+        self,
+        *,
+        name:str,
+        domain:BundleChart,
+        codomain:BundleChart,
+        evaluator:typing.Callable[[BundleCoords],BundleCoords],
+        base_morphism__o:typing.Optional[Morphism]=None,
+    ) -> None:
+        """
+        If base_morphism__o is not None, then evaluator will be checked to verify that its induced
+        base morphism is equal to base_morphism__o (symbolically).
+        """
+
+        Morphism.__init__(
+            self,
+            name=name,
+            domain=domain,
+            codomain=codomain,
+            evaluator=evaluator,
+        )
+
+        if base_morphism__o is not None:
+            base_morphism = base_morphism__o
+        else:
+            base_morphism = Morphism(
+                name=f'BaseMorphismOf({name})',
+                domain=domain.base_chart,
+                codomain=codomain.base_chart,
+                evaluator=lambda v:codomain.base_projection(self.evaluator(v)), # This relies on the commutativity of the diagram
+            )
+
+        self.base_morphism = base_morphism
+        # It's not necessarily well-defined to map domain.fiber_chart to codomain.fiber_chart,
+        # since the map may depend on the basepoint portion of the domain values.
+        self.fiber_morphism = Morphism(
+            name=f'FiberMorphismOf({name})',
+            domain=domain,
+            codomain=codomain.fiber_chart,
+            evaluator=lambda v:codomain.fiber_projection(self.evaluator(v)),
+        )
+
+        # Verify symbolically that the diagram commutes.
+        leg0 = base_morphism(domain.symbolic_coords.base())
+        leg1 = self(domain.symbolic_coords).base()
+        if not np.all(leg0 == leg1):
+            raise ValueError(f'Expected evaluator to produce values in the fiber "above" the image of the base morphism, but base_morphism(domain.symbolic_coords.base()) was {leg0} and self(domain.symbolic_coords).base() was {leg1}; i.e. the diagram defining a bundle morphism did not commute.')
+
     #def __init__ (
         #self,
         #*,
-        #domain:VectorBundleChart,
-        #codomain:VectorBundleChart,
-        #evaluator:typing.Callable[[VectorBundleCoords],VectorBundleCoords],
+        #base_morphism:Morphism,
+        #fiber_morphism:Morphism,
+        #expected_codomain__o:typing.Optional[BundleChart]=None,
     #) -> None:
-        #Morphism.__init__(
-            #domain=domain,
-            #codomain=codomain,
-            #evaluator=evaluator,
+        #"""
+        #If expected_codomain__o is not None, then a type check will be done that the bundle point (base,fiber),
+        #whose image under this BundleMorphism is (base_morphism(base), fiber_morphism(base, fiber)), actually
+        #maps to expected_codomain__o.  Otherwise, the codomain will be inferred from base_morphism and
+        #fiber_morphism.
+        #"""
+
+        #if not isinstance(fiber_morphism.domain, BundleChart):
+            #raise TypeError(f'Expected fiber_morphism.domain (which was {fiber_morphism.domain}) to be an instance of BundleChart')
+        #if base_morphism.domain != fiber_morphism.domain.base_chart:
+            #raise TypeError(f'Expected base_morphism.domain (which was {base_morphism.domain}) to be equal to fiber_morphism.domain.base_chart (which was {fiber_morphism.domain.base_chart})')
+
+        #if expected_codomain__o is not None:
+            #if base_morphism.codomain != expected_codomain__o.base_chart:
+                #raise TypeError(f'Expected base_morphism.codomain (which was {base_morphism.codomain}) to be equal to expected_codomain__o.base_chart (which was {expected_codomain__o.base_chart})')
+            #if fiber_morphism.codomain != expected_codomain__o.fiber_chart:
+                #raise TypeError(f'Expected fiber_morphism.codomain (which was {fiber_morphism.codomain}) to be equal to expected_codomain__o.fiber_chart (which was {expected_codomain__o.fiber_chart})')
+            #codomain = expected_codomain__o
+        #else:
+            #codomain = BundleChart(
+                #name=f'Bundle(base={base_morphism.codomain}, fiber={fiber_morphism.codomain})',
+                #base_chart=base_morphism.codomain,
+                #fiber_chart=fiber_morphism.codomain,
+                #coords_class=coords_class,
+            #)
+
+        #def evaluator (bundle_coords:BundleCoords) -> BundleCoords:
+            #return codomain.make_coords_composed(
+                #base_morphism(bundle_coords.base()),
+                #fiber_morphism(bundle_coords),
+            #)
+
+        #Morphism.__init__(domain=domain, codomain=codomain, evaluator=evaluator)
+
+        #self.base_morphism = base_morphism
+        #self.fiber_morphism = fiber_morphism
+
+        ## Verify symbolically that the diagram commutes.
+        #leg0 = base_morphism(domain.symbolic_coords.base())
+        #leg1 = self(domain.symbolic_coords).base()
+        #if not np.all(leg0 == leg1):
+            #raise ValueError(f'Expected evaluator to produce values in the fiber "above" the image of the base morphism, but base_morphism(domain.symbolic_coords.base()) was {leg0} and self(domain.symbolic_coords).base() was {leg1}; i.e. the diagram defining a bundle morphism did not commute.')
+
+class BundleIsomorphism(BundleMorphism, Isomorphism):
+    def __init__ (
+        self,
+        *,
+        name:str,
+        domain:BundleChart,
+        codomain:BundleChart,
+        evaluator:typing.Callable[[BundleCoords],BundleCoords],
+        inverse_evaluator__o:typing.Optional[typing.Callable[[BundleCoords],BundleCoords]]=None,
+        base_isomorphism__o:typing.Optional[Isomorphism]=None,
+    ) -> None:
+        BundleMorphism.__init__(
+            self,
+            name=name,
+            domain=isomorphism.domain,
+            codomain=isomorphism.codomain,
+            evaluator=isomorphism.evaluator,
+            base_morphism__o=base_isomorphism__o,
+        )
+
+        # This is normally done by Isomorphism.__init__ but we're not going to call that because
+        # it's redundant with parts of BundleMorphism.
+        self.inverse_evaluator = isomorphism.inverse_evaluator
+
+        x = domain.symbolic_coords
+        y = self(x).base()
+        # Verify that there exists a base isomorphism (i.e. the base projection of the isomorphism's image
+        # produces a value depending only on the base of the domain).
+        assert np.all(vorpy.symbolic.differential(y.value, x.fiber().value) == 0)
+
+        v = codomain.symbolic_coords
+        u = self.evaluate_inverse(v).base()
+        # Verify that there exists an inverse base isomorphism (i.e. the base projection of the inverse isomorphism's
+        # image produces a value depending only on the base of the codomain).
+        assert np.all(vorpy.symbolic.differential(u.value, v.fiber().value) == 0)
+
+        base_isomorphism_domain = domain.base_chart
+        base_isomorphism_codomain = codomain.base_chart
+
+        def base_isomorphism_evaluator (coords:Coords) -> Coords:
+            return base_isomorphism_codomain.make_coords(substitute(y.value, x.base().value, coords.value))
+
+        def base_isomorphism_inverse_evaluator (coords:Coords) -> Coords:
+            return base_isomorphism_domain.make_coords(substitute(u.value, v.base().value, coords.value))
+
+        self.base_isomorphism = Isomorphism(
+            name=f'BaseIsomorphismOf({isomorphism.name})',
+            domain=base_isomorphism_domain,
+            codomain=base_isomorphism_codomain,
+            evaluator=base_isomorphism_evaluator,
+            inverse_evaluator__o=base_isomorphism_inverse_evaluator,
+        )
+        self.base_morphism = self.base_isomorphism
+
+        fiber_isomorphism_domain = domain
+        fiber_isomorphism_codomain = codomain.fiber_chart
+
+        def fiber_isomorphism_evaluator (bundle_coords:BundleCoords) -> Coords:
+            return isomorphism(bundle_coords).fiber()
+
+        def fiber_isomorphism_inverse_evaluator (bundle_coords:BundleCoords) -> Coords:
+            return isomorphism.evaluate_inverse(bundle_coords).fiber()
+
+        self.fiber_isomorphism = Isomorphism(
+            name=f'FiberIsomorphismOf({name})',
+            domain=fiber_isomorphism_domain,
+            codomain=fiber_isomorphism_codomain,
+            evaluator=fiber_isomorphism_evaluator,
+            inverse_evaluator__o=fiber_isomorphism_evaluator,
+        )
+        self.fiber_morphism = self.fiber_isomorphism
+
+    #def __init__ (self, isomorphism:Isomorphism) -> None:
+        #require.is_instance(isomorphism.domain, BundleChart)
+        #require.is_instance(isomorphism.codomain, BundleChart)
+
+        #BundleMorphism.__init__(self, domain=isomorphism.domain, codomain=isomorphism.codomain, evaluator=isomorphism.evaluator)
+
+        #self.inverse_evaluator = isomorphism.inverse_evaluator
+
+        #x = isomorphism.domain.symbolic_coords
+        #y = isomorphism(x).base()
+        ## Verify that there exists a base isomorphism (i.e. the base projection of the isomorphism's image
+        ## produces a value depending only on the base of the domain).
+        #assert np.all(vorpy.symbolic.differential(y.value, x.fiber().value) == 0)
+
+        #v = isomorphism.codomain.symbolic_coords
+        #u = isomorphism.evaluate_inverse(v).base()
+        ## Verify that there exists an inverse base isomorphism (i.e. the base projection of the inverse isomorphism's
+        ## image produces a value depending only on the base of the codomain).
+        #assert np.all(vorpy.symbolic.differential(u.value, v.fiber().value) == 0)
+
+        #base_isomorphism_domain = isomorphism.domain.base_chart
+        #base_isomorphism_codomain = isomorphism.codomain.base_chart
+
+        #def base_isomorphism_evaluator (coords:Coords) -> Coords:
+            #return base_isomorphism_codomain.make_coords(substitute(y.value, x.base().value, coords.value))
+
+        #def base_isomorphism_inverse_evaluator (coords:Coords) -> Coords:
+            #return base_isomorphism_domain.make_coords(substitute(u.value, v.base().value, coords.value))
+
+        #self.base_isomorphism = Isomorphism(
+            #name=f'BaseMorphismOf({isomorphism.name})',
+            #domain=base_isomorphism_domain,
+            #codomain=base_isomorphism_codomain,
+            #evaluator=base_isomorphism_evaluator,
+            #inverse_evaluator__o=base_isomorphism_inverse_evaluator
         #)
 
-        ## Sanity check -- this is for FiberBundleMorphism
-        ## TODO: Verify that there exists a base morphism which makes the following diagram commute:
-        ## Let F denote the vector bundle morphism and let f denote the base morphism.
-        ##
-        ##   domain    -- F -->    codomain
-        ##      |                     |
-        ##   baseproj              baseproj
-        ##      V                     V
-        ## domain.base -- f --> codomain.base
+        #fiber_isomorphism_domain = isomorphism.domain
+        #fiber_isomorphism_codomain = isomorphism.codomain.fiber_chart
 
-        #self.base_morphism = Morphism(
-            #domain=domain.base_chart,
-            #codomain=codomain.base_chart,
-            #evaluator=lambda v:codomain.base_projection(self.evaluator(v)), # This relies on the commutativity of the diagram
-        #)
-        ## It's not necessarily well-defined to map domain.fiber_chart to codomain.fiber_chart.
-        #self.fiber_morphism = Morphism(
-            #domain=domain,
-            #codomain=codomain.fiber_chart,
-            #evaluator=lambda v:codomain.fiber_projection(self.evaluator(v)),
+        #def fiber_isomorphism_evaluator (bundle_coords:BundleCoords) -> Coords:
+            #return isomorphism(bundle_coords).fiber()
+
+        #def fiber_isomorphism_inverse_evaluator (bundle_coords:BundleCoords) -> Coords:
+            #return isomorphism.evaluate_inverse(bundle_coords).fiber()
+
+        #self.fiber_isomorphism = Isomorphism(
+            #name=f'FiberMorphismOf({isomorphism.name})',
+            #domain=fiber_isomorphism_domain,
+            #codomain=fiber_isomorphism_codomain,
+            #evaluator=fiber_isomorphism_evaluator,
+            #inverse_evaluator__o=fiber_isomorphism_evaluator,
         #)
 
-    ## TODO: static method "make_composed" which takes a base morphism and basepoint-independent fiber morphism.
+    def evaluate_inverse (self, coords:BundleCoords) -> BundleCoords:
+        self.codomain.verify_chart_type(coords, coords_name='coords')
+        retval = self.inverse_evaluator(coords)
+        self.domain.verify_chart_type(retval, coords_name=f'return value of inverse_evaluator')
+        return retval
 
-# TODO: VectorBundleIsomorphism, TangentBundleMorphism, TangentBundleIsomorphism, etc.
+    # Type-specific override
+    def inverse (self) -> 'BundleIsomorphism':
+        return BundleIsomorphism(
+            name=f'{self.name}^{{-1}}',
+            domain=self.codomain,
+            codomain=self.domain,
+            evaluator=self.inverse_evaluator,
+            inverse_evaluator__o=self.evaluator,
+            base_isomorphism__o=self.base_isomorphism.inverse(),
+        )
+
+#class BundleMorphismOver:
+    #"""This represents the space of bundle morphisms between two bundles over a particular base morphism."""
+
+    #def __init__ (self, *, domain:BundleChart, codomain:BundleChart, base_morphism:Morphism) -> None:
+        #if base_morphism.domain != domain.base_chart:
+            #raise TypeError(f'Expected base_morphism.domain (which was {base_morphism.domain}) to be equal to domain.base_chart (which was {domain.base_chart})')
+        #if base_morphism.codomain != codomain.base_chart:
+            #raise TypeError(f'Expected base_morphism.codomain (which was {base_morphism.codomain}) to be equal to codomain.base_chart (which was {codomain.base_chart})')
+
+        #self.domain = domain
+        #self.codomain = codomain
+        #self.base_morphism = base_morphism
+
+class VectorBundleMorphism(BundleMorphism):
+    def __init__ (
+        self,
+        *,
+        name:str,
+        domain:BundleChart,
+        codomain:BundleChart,
+        evaluator:typing.Callable[[BundleCoords],BundleCoords],
+        base_morphism__o:typing.Optional[Morphism]=None,
+    ) -> None:
+        BundleMorphism.__init__(
+            self,
+            name=name,
+            domain=domain,
+            codomain=codomain,
+            evaluator=evaluator,
+            base_morphism__o=base_morphism__o,
+        )
+
+    # Nothing else appears to be needed here.
+
+class VectorBundleIsomorphism(VectorBundleMorphism, BundleIsomorphism):
+    def __init__ (
+        self,
+        *,
+        name:str,
+        domain:BundleChart,
+        codomain:BundleChart,
+        evaluator:typing.Callable[[BundleCoords],BundleCoords],
+        inverse_evaluator__o:typing.Optional[typing.Callable[[BundleCoords],BundleCoords]]=None,
+        base_isomorphism__o:typing.Optional[Isomorphism]=None,
+    ) -> None:
+        BundleIsomorphism.__init__(
+            self,
+            name=name,
+            domain=domain,
+            codomain=codomain,
+            evaluator=evaluator,
+            inverse_evaluator__o=inverse_evaluator__o,
+            base_isomorphism__o=base_isomorphism__o,
+        )
 
 def TangentFunctor_ob (base_chart:Chart, *, fiber_symbolic_coords__o:typing.Optional[np.ndarray]=None) -> TangentBundleChart:
     """This is the tangent functor's action on objects of the category (i.e. Chart)."""
@@ -776,9 +1157,56 @@ def CotangentFunctor_ob (base_chart:Chart, *, fiber_symbolic_coords__o:typing.Op
     """This is the cotangent functor's action on objects of the category (i.e. Chart)."""
     return CotangentBundleChart.induced(base_chart, fiber_symbolic_coords__o=fiber_symbolic_coords__o)
 
-#def TangentFunctor_mor (arg:Morphism) -> TangentBundleMorphism:
-    #"""This is the tangent functor's action on morphisms of the category (i.e. Morphism)."""
-    #return TangentBundleMorphism.induced(arg)
+def TangentFunctor_mor (morphism:Morphism) -> VectorBundleMorphism:
+    """This is the tangent functor's action on morphisms of the category (i.e. Morphism)."""
+
+    J = jacobian(morphism)
+
+    domain = TangentFunctor_ob(morphism.domain)
+    codomain = TangentFunctor_ob(morphism.codomain)
+
+    def evaluator (bundle_coords:BundleCoords) -> BundleCoords:
+        return codomain.make_coords_composed(
+            morphism(bundle_coords.base()),
+            codomain.fiber_chart.make_coords(
+                np.dot(J(bundle_coords.base()).value, bundle_coords.fiber().value)
+            ),
+        )
+
+    return VectorBundleMorphism(
+        name=f'T({morphism.name})',
+        domain=domain,
+        codomain=codomain,
+        evaluator=evaluator,
+        base_morphism__o=morphism,
+    )
+
+def CotangentFunctor_mor (morphism:Morphism) -> VectorBundleMorphism:
+    """This is the tangent functor's action on morphisms of the category (i.e. Morphism)."""
+
+    J = jacobian(morphism)
+
+    domain = PullbackVectorBundleChart(pullback_morphism=morphism, target_bundle_chart=CotangentFunctor_ob(morphism.codomain))
+    codomain = CotangentFunctor_ob(morphism.domain)
+
+    def evaluator (bundle_coords:BundleCoords) -> BundleCoords:
+        domain.verify_chart_type(bundle_coords, coords_name='bundle_coords')
+        morphism.domain.verify_chart_type(bundle_coords.base(), coords_name='bundle_coords.base()')
+        #print(f'HIPPO; bundle_coords.fiber() = {bundle_coords.fiber()}')
+        return codomain.make_coords_composed(
+            bundle_coords.base(),
+            codomain.fiber_chart.make_coords(
+                np.dot(bundle_coords.fiber().value, J(bundle_coords.base()).fiber().value)
+            ),
+        )
+
+    return VectorBundleMorphism(
+        name=f'T^{{*}}({morphism.name})',
+        domain=domain,
+        codomain=codomain,
+        evaluator=evaluator,
+        base_morphism__o=identity_isomorphism(morphism.domain),
+    )
 
 #def TangentFunctor_iso (arg:Isomorphism) -> TangentBundleIsomorphism:
     #"""This is the tangent functor's action on isomorphisms of the category (i.e. Isomorphism)."""
@@ -1048,8 +1476,20 @@ if __name__ == '__main__':
     H_QC = substitution(H_R3, qp_R3.value, qp_R3_from_QC.value)
     J_QC = substitution(J_R3, qp_R3.value, qp_R3_from_QC.value)
 
+    R, theta, w = qp_QC.base().value
+    p_R, p_theta, p_w = qp_QC.fiber().value
+    P_R_QC = 2*sp.sqrt(R)*p_R
+    P_theta_QC = p_theta/sp.sqrt(R) + 2*sp.sqrt(R)*p_w
+
+    print(f'P_R_QC = {P_R_QC}')
+    print(f'P_theta_QC = {P_theta_QC}')
+    print()
     print(f'H_QC = {H_QC}')
     print(f'J_QC = {J_QC}')
+    print()
+
+    X_H_QC = simplified(vorpy.symplectic.symplectic_gradient_of(H_QC[tuple()], qp_QC.value))
+    print(f'X_H_QC:\n{X_H_QC}')
     print()
 
     J_QC_to_LS = jacobian(QC_to_LS)
@@ -1063,9 +1503,31 @@ if __name__ == '__main__':
     print(f'qp_QC_from_LS:\n{qp_QC_from_LS}')
     print()
 
+    P_R_LS = substitution(P_R_QC, qp_QC.value, qp_QC_from_LS.value)
+    P_theta_LS = substitution(P_theta_QC, qp_QC.value, qp_QC_from_LS.value)
     H_LS = substitution(H_QC, qp_QC.value, qp_QC_from_LS.value)
     J_LS = substitution(J_QC, qp_QC.value, qp_QC_from_LS.value)
 
+    print(f'P_R_LS = {P_R_LS}')
+    print(f'P_theta_LS = {P_theta_LS}')
+    print()
     print(f'H_LS = {H_LS}')
     print(f'J_LS = {J_LS}')
     print()
+
+    print(f'type(H_LS) = {type(H_LS)}')
+    print(f'type(H_LS[tuple()]) = {type(H_LS[tuple()])}')
+    X_H_LS = simplified(vorpy.symplectic.symplectic_gradient_of(H_LS[tuple()], qp_LS.value))
+    print(f'X_H_LS:\n{X_H_LS}')
+    print()
+
+    # Induced change of cotangent bundle coordinates.
+    T_star_R3_to_QC = CotangentFunctor_mor(R3_to_QC)
+    require.is_equal(T_star_R3_to_QC.domain, PullbackVectorBundleChart(pullback_morphism=R3_to_QC, target_bundle_chart=T_star_QC))
+    print(f'T_star_R3_to_QC = {T_star_R3_to_QC}')
+    print(f'T_star_R3_to_QC.domain = {T_star_R3_to_QC.domain}')
+    print(f'QC_to_R3(qp_QC.base()), qp_QC = {QC_to_R3(qp_QC.base()), qp_QC}')
+    print(f'T_star_R3_to_QC.domain.make_coords_composed(QC_to_R3(qp_QC.base()), qp_QC.fiber()) = {T_star_R3_to_QC.domain.make_coords_composed(QC_to_R3(qp_QC.base()), qp_QC.fiber())}')
+    print(T_star_R3_to_QC(T_star_R3_to_QC.domain.make_coords_composed(QC_to_R3(qp_QC.base()), qp_QC.fiber())))
+    print()
+
