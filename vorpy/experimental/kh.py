@@ -375,17 +375,14 @@ class QuadraticCylindricalSymbolics(KeplerHeisenbergSymbolics):
         if qp.shape != (2,3):
             raise TypeError(f'expected qp.shape to be s+(2,3) for some shape s, but qp.shape was {qp.shape}')
 
-        if other_coordinates is QuadraticCylindricalSymbolics:
-            return qp
-        elif other_coordinates is EuclideanSymbolics:
-            R       = qp[0,0]
-            theta   = qp[0,1]
-            w       = qp[0,2]
-            p_R     = qp[1,0]
-            p_theta = qp[1,1]
-            p_w     = qp[1,2]
+        R       = qp[0,0]
+        theta   = qp[0,1]
+        w       = qp[0,2]
+        p_R     = qp[1,0]
+        p_theta = qp[1,1]
+        p_w     = qp[1,2]
 
-
+        if other_coordinates is EuclideanSymbolics:
             r       = sp.sqrt(R)
 
             x       = r*sp.cos(theta)
@@ -395,11 +392,22 @@ class QuadraticCylindricalSymbolics(KeplerHeisenbergSymbolics):
             p_y     = 2*r*p_R*sp.sin(theta) + p_theta*sp.cos(theta)/r
             p_z     = 4*p_w
 
-            euclidean_qp = np.array([
+            return np.array([
                 [x,   y,   z],
                 [p_x, p_y, p_z],
             ])
-            return euclidean_qp
+        elif other_coordinates is QuadraticCylindricalSymbolics:
+            return qp
+        elif other_coordinates is LogSizeSymbolics:
+            s       = sp.log(R**2 + w**2) / 4
+            u       = sp.atan2(w, R)
+            p_s     = 2*R*p_R + 2*w*p_w
+            p_u     = R*p_w - w*p_R
+
+            return np.array([
+                [s,   theta,   u],
+                [p_s, p_theta, p_u],
+            ])
         else:
             raise TypeError(f'coordinate change from {cls} to {other_coordinates} not implemented')
 
@@ -459,6 +467,123 @@ class QuadraticCylindricalSymbolics(KeplerHeisenbergSymbolics):
     def p_dependent_constrained_by_H__symbolic (cls, arguments:np.ndarray) -> np.ndarray:
         return QuadraticCylindricalSymbolics.p_w_constrained_by_H__symbolic(arguments)
 
+class LogSizeSymbolics(KeplerHeisenbergSymbolics):
+    """
+    Kepler-Heisenberg symbolic quantities in a log-size cylindrical coordinates (s, theta, u), where
+
+        s     = log(R^2 + w^2) / 4
+        theta = theta
+        u     = arg(R, w)
+    """
+
+    @classmethod
+    def name (cls) -> str:
+        return 'LogSizeSymbolics'
+
+    @classmethod
+    def qp_coordinates (cls) -> np.ndarray:
+        return np.array([
+            [sp.var('s'),   sp.var('theta'),   sp.var('u')],
+            [sp.var('p_s'), sp.var('p_theta'), sp.var('p_u')],
+        ])
+
+    @classmethod
+    @abc.abstractmethod
+    def change_qp_coordinates_to (cls, other_coordinates:typing.Any, qp:np.ndarray) -> np.ndarray:
+        if qp.shape != (2,3):
+            raise TypeError(f'expected qp.shape to be s+(2,3) for some shape s, but qp.shape was {qp.shape}')
+
+        if other_coordinates is QuadraticCylindricalSymbolics:
+            s       = qp[0,0]
+            theta   = qp[0,1]
+            u       = qp[0,2]
+            p_s     = qp[1,0]
+            p_theta = qp[1,1]
+            p_u     = qp[1,2]
+
+            R       = sp.exp(2*s)*sp.cos(u)
+            w       = sp.exp(2*s)*sp.sin(u)
+            p_R     = sp.exp(-2*s)*(sp.cos(u)*p_s/2 - sp.sin(u)*p_u)
+            p_w     = sp.exp(-2*s)*(sp.sin(u)*p_s/2 + sp.cos(u)*p_u)
+
+            return np.array([
+                [R,   theta,   w],
+                [p_R, p_theta, p_w],
+            ])
+        elif other_coordinates is LogSizeSymbolics:
+            return qp
+        else:
+            raise TypeError(f'coordinate change from {cls} to {other_coordinates} not implemented')
+
+    @classmethod
+    def qv_coordinates (cls) -> np.ndarray:
+        return np.array([
+            [sp.var('s'),   sp.var('theta'),   sp.var('u')],
+            [sp.var('v_s'), sp.var('v_theta'), sp.var('v_u')],
+        ])
+
+    @classmethod
+    def H__symbolic (cls, qp:np.ndarray) -> typing.Any: # TODO: this should specify a scalar type somehow
+        s,   theta,   u         = qp[0,:]
+        p_s, p_theta, p_u   = p = qp[1,:]
+
+        # (4*pi*p_theta**2 + 2*pi*(p_s**2*cos(2*u) + p_s**2 + 2*p_s*p_theta*sin(2*u) + 4*p_theta*p_u*cos(2*u) + 4*p_theta*p_u + 4*p_u**2*cos(2*u) + 4*p_u**2) - cos(u))*exp(-2*s)/(8*pi*cos(u))
+
+        # M is related to the Legendre transform by a factor of exp(2*s).
+        M                   = np.array([
+            [sp.cos(u), sp.sin(u),   0],
+            [sp.sin(u), 1/sp.cos(u), 2*sp.cos(u)],
+            [0,         2*sp.cos(u), 4*sp.cos(u)],
+        ])
+        H                   = sp.exp(-2*s)*(vorpy.tensor.contract('i,ij,j', p, M, p, dtype=object)/2 - 1/(8*sp.pi))
+
+        return H
+
+    @classmethod
+    def J__symbolic (cls, qp:np.ndarray) -> np.ndarray:
+        p_s = qp[1,0]
+        return p_s
+
+    @classmethod
+    def p_theta__symbolic (cls, qp:np.ndarray) -> np.ndarray:
+        return qp[1,1]
+
+    @staticmethod
+    def p_u_constrained_by_H__symbolic (arguments:np.ndarray) -> np.ndarray:
+        """
+        Solves for p_u in terms of s, theta, u, p_s, p_theta, H_initial (which are the elements of the (6,)-shaped ndarray arguments).
+        There are two solutions, and this returns them both as an np.ndarray with shape (2,).
+        """
+
+        if arguments.shape != (6,):
+            raise TypeError(f'expected arguments.shape == (6,), but it was actually {arguments.shape}')
+
+        # Unpack the arguments so they can form the specific expressions.
+        s, theta, u, p_s, p_theta, H_initial    = arguments
+        p_u                                     = sp.var('p_u')
+        qp                                      = np.array([[s, theta, u], [p_s, p_theta, p_u]])
+        H                                       = LogSizeSymbolics.H__symbolic(qp)
+
+        p_u_constrained_by_H_v                  = sp.solve(H - H_initial, p_u)
+        assert len(p_u_constrained_by_H_v) == 2
+        return np.array(p_u_constrained_by_H_v)
+
+    @classmethod
+    @abc.abstractmethod
+    def p_dependent_constrained_by_H__symbolic (cls, arguments:np.ndarray) -> np.ndarray:
+        return LogSizeSymbolics.p_u_constrained_by_H__symbolic(arguments)
+
+    @classmethod
+    def p_s_bounds__symbolic (cls, u_p_theta:np.array) -> np.array:
+        u, p_theta = u_p_theta
+
+        x = -sp.tan(u)*p_theta
+        discriminant = 2 * x**2 + 1/(4*sp.pi*sp.cos(u))
+        return np.array([
+            x - sp.sqrt(discriminant),
+            x + sp.sqrt(discriminant),
+        ])
+
 class KeplerHeisenbergNumerics:
     """
     Base class representing the numeric quantities in the Kepler-Heisenberg problem.
@@ -492,17 +617,20 @@ class KeplerHeisenbergNumerics:
         H_cq = vorpy.integration.adaptive.ControlledQuantity(
             name='H',
             reference_quantity=H_initial,
-            global_error_band=vorpy.integration.adaptive.RealInterval(1.0e-12, 1.0e-10),
+            #global_error_band=vorpy.integration.adaptive.RealInterval(1.0e-12, 1.0e-10),
+            global_error_band=vorpy.integration.adaptive.RealInterval(1.0e-12, 1.0e-6),
             quantity_evaluator=(lambda t,qp:typing.cast(float, cls.H__fast(qp))), # type: ignore
         )
         p_theta_cq = vorpy.integration.adaptive.ControlledQuantity(
             name='p_theta',
             reference_quantity=p_theta_initial,
-            global_error_band=vorpy.integration.adaptive.RealInterval(1.0e-12, 1.0e-10),
+            #global_error_band=vorpy.integration.adaptive.RealInterval(1.0e-12, 1.0e-10),
+            global_error_band=vorpy.integration.adaptive.RealInterval(1.0e-12, 1.0e-6),
             quantity_evaluator=(lambda t,qp:typing.cast(float, cls.p_theta__fast(qp))), # type: ignore
         )
         controlled_sq_ltee = vorpy.integration.adaptive.ControlledSquaredLTEE(
-            global_error_band=vorpy.integration.adaptive.RealInterval(1.0e-14**2, 1.0e-10**2),
+            #global_error_band=vorpy.integration.adaptive.RealInterval(1.0e-14**2, 1.0e-10**2),
+            global_error_band=vorpy.integration.adaptive.RealInterval(1.0e-14**2, 1.0e-6**2),
         )
 
         try:
@@ -531,6 +659,7 @@ class KeplerHeisenbergNumerics:
             return results
         except ValueError as e:
             print(f'Caught exception {e} for qp_initial = {qp_initial}; pickle_filename_p = "{pickle_filename_p}"')
+            raise
 
     @classmethod
     def compute_stuff (cls) -> None:
@@ -704,6 +833,18 @@ class QuadraticCylindricalNumerics(KeplerHeisenbergNumerics):
 
     @staticmethod
     @vorpy.symbolic.cache_lambdify(
+        function_id='QuadraticCylindrical__qp_to_LogSize',
+        argument_id='qp',
+        replacement_d={'dtype=object':'dtype=float', 'cos':'np.cos', 'sin':'np.sin', 'sqrt':'np.sqrt', 'log':'np.log', 'atan2':'np.arctan2', 'ndarray':'np.ndarray'},
+        import_v=['import numpy as np'],
+        verbose=True,
+    )
+    def qp_to_LogSize__fast () -> np.ndarray:
+        qp = QuadraticCylindricalSymbolics.qp_coordinates()
+        return QuadraticCylindricalSymbolics.change_qp_coordinates_to(LogSizeSymbolics, qp), qp
+
+    @staticmethod
+    @vorpy.symbolic.cache_lambdify(
         function_id='QuadraticCylindrical__H',
         argument_id='qp',
         replacement_d={'dtype=object':'dtype=float', 'pi':'np.pi', 'sqrt':'np.sqrt'},
@@ -844,9 +985,182 @@ class QuadraticCylindricalNumerics(KeplerHeisenbergNumerics):
     def compute_trajectory__worker (args):
         return QuadraticCylindricalNumerics.compute_trajectory(*args)
 
+class LogSizeNumerics(KeplerHeisenbergNumerics):
+    @classmethod
+    def name (cls) -> str:
+        return 'LogSizeNumerics'
+
+    @staticmethod
+    @vorpy.symbolic.cache_lambdify(
+        function_id='LogSize__qp_to_QuadraticCylindrical',
+        argument_id='qp',
+        replacement_d={'dtype=object':'dtype=float', 'cos':'np.cos', 'sin':'np.sin', 'exp':'np.exp', 'pi':'np.pi', 'sqrt':'np.sqrt', 'ndarray':'np.ndarray'},
+        import_v=['import numpy as np'],
+        verbose=True,
+    )
+    def qp_to_QuadraticCylindrical__fast () -> np.ndarray:
+        qp = LogSizeSymbolics.qp_coordinates()
+        return LogSizeSymbolics.change_qp_coordinates_to(QuadraticCylindricalSymbolics, qp), qp
+
+    @staticmethod
+    @vorpy.symbolic.cache_lambdify(
+        function_id='LogSize__H',
+        argument_id='qp',
+        replacement_d={'dtype=object':'dtype=float', 'pi':'np.pi', 'exp':'np.exp', 'cos':'np.cos', 'sin':'np.sin', 'sqrt':'np.sqrt'},
+        import_v=['import numpy as np'],
+        verbose=True,
+    )
+    def H__fast ():
+        qp = LogSizeSymbolics.qp_coordinates()
+        return LogSizeSymbolics.H__symbolic(qp), qp
+
+    @staticmethod
+    @vorpy.symbolic.cache_lambdify(
+        function_id='LogSize__qp_to_qv',
+        argument_id='qp',
+        replacement_d={'dtype=object':'dtype=float', 'pi':'np.pi', 'cos':'np.cos', 'sin':'np.sin', 'exp':'np.exp', 'sqrt':'np.sqrt'},
+        import_v=['import numpy as np'],
+        verbose=True,
+    )
+    def qp_to_qv__fast ():
+        qp = LogSizeSymbolics.qp_coordinates()
+        return LogSizeSymbolics.qp_to_qv__symbolic(qp), qp
+
+    #@staticmethod
+    #@vorpy.symbolic.cache_lambdify(
+        #function_id='LogSize__qv_to_qp',
+        #argument_id='qp',
+        #replacement_d={'dtype=object':'dtype=float', 'pi':'np.pi', 'sqrt':'np.sqrt'},
+        #import_v=['import numpy as np'],
+        #verbose=True,
+    #)
+    #def qv_to_qp__fast ():
+        #qv = LogSizeSymbolics.qv_coordinates()
+        #return LogSizeSymbolics.qv_to_qp__symbolic(qv), qv
+
+    #@staticmethod
+    #@vorpy.symbolic.cache_lambdify(
+        #function_id='LogSize__L',
+        #argument_id='qp',
+        #replacement_d={'dtype=object':'dtype=float', 'pi':'np.pi', 'sqrt':'np.sqrt'},
+        #import_v=['import numpy as np'],
+        #verbose=True,
+    #)
+    #def L__fast ():
+        #qv = LogSizeSymbolics.qv_coordinates()
+        #return LogSizeSymbolics.L__symbolic(qv), qv
+
+    @staticmethod
+    @vorpy.symbolic.cache_lambdify(
+        function_id='LogSize__X_H',
+        argument_id='qp',
+        replacement_d={'dtype=object':'dtype=float', 'pi':'np.pi', 'cos':'np.cos', 'sin':'np.sin', 'exp':'np.exp', 'sqrt':'np.sqrt', 'ndarray':'np.ndarray'},
+        import_v=['import numpy as np'],
+        verbose=True,
+    )
+    def X_H__fast ():
+        qp = LogSizeSymbolics.qp_coordinates()
+        return LogSizeSymbolics.X_H__symbolic(qp), qp
+
+    @staticmethod
+    @vorpy.symbolic.cache_lambdify(
+        function_id='LogSize__J',
+        argument_id='qp',
+        replacement_d={'dtype=object':'dtype=float'},
+        import_v=['import numpy as np'],
+        verbose=True,
+    )
+    def J__fast ():
+        qp = LogSizeSymbolics.qp_coordinates()
+        return LogSizeSymbolics.J__symbolic(qp), qp
+
+    @staticmethod
+    @vorpy.symbolic.cache_lambdify(
+        function_id='LogSize__p_theta',
+        argument_id='qp',
+        replacement_d={'dtype=object':'dtype=float'},
+        import_v=['import numpy as np'],
+        verbose=True,
+    )
+    def p_theta__fast ():
+        qp = LogSizeSymbolics.qp_coordinates()
+        return LogSizeSymbolics.p_theta__symbolic(qp), qp
+
+    @staticmethod
+    @vorpy.symbolic.cache_lambdify(
+        function_id='LogSize__p_u_constrained_by_H',
+        argument_id='X',
+        replacement_d={'dtype=object':'dtype=float', 'pi':'np.pi', 'cos':'np.cos', 'sin':'np.sin', 'exp':'np.exp', 'sqrt':'np.sqrt', 'ndarray':'np.ndarray'},
+        import_v=['import numpy as np'],
+        verbose=True,
+    )
+    def p_u_constrained_by_H__fast ():
+        X = np.array(sp.var('s,theta,u,p_s,p_theta,H_initial'))
+        return LogSizeSymbolics.p_u_constrained_by_H__symbolic(X), X
+
+    @staticmethod
+    @vorpy.symbolic.cache_lambdify(
+        function_id='LogSize__qp_constrained_by_H',
+        argument_id='X',
+        replacement_d={'dtype=object':'dtype=float', 'pi':'np.pi', 'cos':'np.cos', 'sin':'np.sin', 'exp':'np.exp', 'sqrt':'np.sqrt', 'ndarray':'np.ndarray'},
+        import_v=['import numpy as np'],
+        verbose=True,
+    )
+    def qp_constrained_by_H__fast ():
+        X = np.array(sp.var('s,theta,u,p_s,p_theta,H_initial'))
+        return LogSizeSymbolics.qp_constrained_by_H__symbolic(X), X
+
+    @staticmethod
+    @vorpy.symbolic.cache_lambdify(
+        function_id='LogSize__p_s_bounds',
+        argument_id='X',
+        replacement_d={'dtype=object':'dtype=float', 'pi':'np.pi', 'cos':'np.cos', 'sin':'np.sin', 'tan':'np.tan', 'exp':'np.exp', 'sqrt':'np.sqrt', 'ndarray':'np.ndarray'},
+        import_v=['import numpy as np'],
+        verbose=True,
+    )
+    def p_s_bounds__fast ():
+        X = np.array(sp.var('u,p_theta'))
+        return LogSizeSymbolics.p_s_bounds__symbolic(X), X
+
+    @classmethod
+    def generate_compute_trajectory_args (cls):
+        t_final = 60.0
+
+        s_initial_v = [0.0]
+        theta_initial_v = [0.0]
+        u_initial_v = [0.0]
+
+        p_s_initial_v = np.linspace(-0.125, 0.125, 21)
+        assert 0.0 in p_s_initial_v
+
+        p_theta_initial_v = np.linspace(0.05, 0.4, 31)
+
+        #H_initial_v = np.linspace(-1.0/32, 1.0/32, 11)
+        #assert 0.0 in H_initial_v
+        H_initial_v = [0.0]
+
+        trajectory_index = 0
+
+        for s_initial,theta_initial,u_initial,p_s_initial,p_theta_initial,H_initial in itertools.product(s_initial_v,theta_initial_v,u_initial_v,p_s_initial_v,p_theta_initial_v,H_initial_v):
+            X = np.array([s_initial,theta_initial,u_initial,p_s_initial,p_theta_initial,H_initial])
+            p_u_constrained_by_H_v = LogSizeNumerics.p_u_constrained_by_H__fast(X)
+
+            for solution_sheet,p_u_constrained_by_H in enumerate(p_u_constrained_by_H_v):
+                qp_initial = np.array([[X[0], X[1], X[2]], [X[3], X[4], p_u_constrained_by_H]])
+                pickle_filename_p = pathlib.Path(f'kh_dilation_data.ls.00/{cls.name()}/H={H_initial}_p_s={p_s_initial}_p_theta={p_theta_initial}_sheet={solution_sheet}/trajectory-{trajectory_index:06}.pickle')
+                yield pickle_filename_p, qp_initial, t_final, solution_sheet
+
+                trajectory_index += 1
+
+    @staticmethod
+    def compute_trajectory__worker (args):
+        return LogSizeNumerics.compute_trajectory(*args)
+
 if __name__ == '__main__':
     #qp = EuclideanSymbolics.qp_coordinates()
     #X_H = EuclideanSymbolics.X_H__symbolic(qp)
-    qp = QuadraticCylindricalSymbolics.qp_coordinates()
-    X_H = QuadraticCylindricalSymbolics.X_H__symbolic(qp)
+    #qp = QuadraticCylindricalSymbolics.qp_coordinates()
+    #X_H = QuadraticCylindricalSymbolics.X_H__symbolic(qp)
+    qp = LogSizeSymbolics.qp_coordinates()
+    X_H = LogSizeSymbolics.X_H__symbolic(qp)
     print(f'X_H:\n{X_H.reshape(-1,1)}')

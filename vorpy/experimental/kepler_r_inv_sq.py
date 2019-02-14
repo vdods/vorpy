@@ -3,6 +3,7 @@ import numpy as np
 import pathlib
 import sympy as sp
 import typing
+import vorpy.experimental.plot
 import vorpy.integration.adaptive
 import vorpy.linalg
 import vorpy.manifold
@@ -112,32 +113,6 @@ def compute_trajectory (qp_initial:np.ndarray, t_final:float) -> vorpy.integrati
     )
     return results
 
-class Plot:
-    def __init__ (self, *, row_count:int, col_count:int, size:float) -> None:
-        self.fig, self.axis_vv = plt.subplots(
-            row_count,
-            col_count,
-            squeeze=False,
-            figsize=(size*col_count,size*row_count),
-        )
-
-    def axis (self, row:int, col:int) -> typing.Any: # TODO: Real type
-        return self.axis_vv[row][col]
-
-    def savefig (self, plot_p:pathlib.Path) -> None:
-        self.fig.tight_layout()
-        plot_p.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(str(plot_p), bbox_inches='tight')
-        print(f'wrote to file "{plot_p}"')
-        # VERY important to do this -- otherwise your memory will slowly fill up!
-        # Not sure which one is actually sufficient -- apparently none of them are, YAY!
-        plt.clf()
-        plt.cla()
-        plt.close()
-        plt.close(self.fig)
-        #del fig
-        #del axis_vv
-
 def do_stuff ():
     x  ,y   = q = np.array(sp.var('x,y'))
     p_x,p_y = p = np.array(sp.var('p_x,p_y'))
@@ -172,7 +147,7 @@ def do_stuff ():
     t_final = 3000.0
     results = compute_trajectory(qp_initial, t_final)
 
-    plot = Plot(row_count=1, col_count=2, size=10)
+    plot = vorpy.experimental.plot.Plot(row_count=1, col_count=2, size=10)
 
     axis = plot.axis(0, 0)
     axis.set_title('(x(t), y(t))')

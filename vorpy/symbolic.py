@@ -134,10 +134,10 @@ def D (F, *X_v):
 
     i.e. the Hessian of F.
     """
-    compiled_function = F
+    retval = F
     for X in X_v:
-        compiled_function = differential(compiled_function, X)
-    return compiled_function
+        retval = differential(retval, X)
+    return retval
 
 def python_expression_for (F, X, *, replacement_d={}, argument_id='X'):
     """

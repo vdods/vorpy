@@ -767,12 +767,18 @@ if __name__ == '__main__':
     #for p_y_initial in np.linspace(0.05, 0.4, 20):
         #plot_J_equal_zero_extrapolated_trajectory(p_y_initial)
 
+
+
     #p_y_initial = 0.1
     #plot_J_equal_zero_extrapolated_trajectory(p_y_initial)
+
+
 
     #other_trajectory_p_x_initial = -0.1
     #for p_y_initial in np.linspace(0.05, 0.4, 20):
         #transform_J(p_y_initial, other_trajectory_p_x_initial)
+
+
 
     #base_dir_p = pathlib.Path('unwrap.06')
     ##for p_R_initial,p_theta_initial in itertools.product(np.linspace(-1.0/64, 1.0/64, 3), np.linspace(0.05, 0.4, 2)):
@@ -782,6 +788,8 @@ if __name__ == '__main__':
         #except ValueError as e:
             #print(f'Caught {e}')
             #pass
+
+
 
     #J_bound     = 0.0625
     ##J_bound     = 0.25
@@ -793,6 +801,8 @@ if __name__ == '__main__':
         #J_initial_v=J_initial_v,
         #plot_dir_p=pathlib.Path('related.01'),
     #)
+
+
 
     print(f'X_H:\n{vorpy.experimental.kh.QuadraticCylindricalSymbolics.X_H__symbolic(vorpy.experimental.kh.QuadraticCylindricalSymbolics.qp_coordinates()).reshape(6,1)}')
     sys.exit(0)

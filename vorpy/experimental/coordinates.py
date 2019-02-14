@@ -9,13 +9,20 @@ import vorpy.symbolic
 import vorpy.symplectic
 
 # Convenience function because sympy's simplify function doesn't preserve the input type
-def simplified (arg:np.ndarray) -> np.ndarray:
-    return np.array(sp.simplify(arg)).reshape(arg.shape)
+def simplified (arg:np.ndarray, *, preserve_shape:bool=False) -> np.ndarray:
+    retval = np.array(sp.simplify(arg)).reshape(np.shape(arg))
+    if not preserve_shape:
+        if isinstance(retval, np.ndarray) and retval.shape == tuple():
+            retval = retval[()]
+    return retval
 
-def substitution (expr:typing.Any, point:np.array, value:np.array, *, simplify:bool=True) -> np.ndarray:
+def substitution (expr:typing.Any, point:np.array, value:np.array, *, simplify:bool=True, preserve_shape:bool=False) -> np.ndarray:
     retval = np.array(sp.Subs(expr, point.reshape(-1), value.reshape(-1)).doit()).reshape(np.shape(expr))
     if simplify:
         retval = simplified(retval)
+    if not preserve_shape:
+        if isinstance(retval, np.ndarray) and retval.shape == tuple():
+            retval = retval[()]
     return retval
 
 def prefixed_symbolic_tensor (prefix:str, symbol__t:np.ndarray) -> np.ndarray:
@@ -1388,6 +1395,13 @@ if __name__ == '__main__':
     print(f'{product}')
     print()
 
+    J = jacobian(QC_to_R3)(R3_to_QC(p_R3.base()))
+    print(f'J:\n{J}')
+    print(f'change of coords {T_star_R3} -> {T_star_QC}:')
+    product = simplified(np.dot(p_R3.fiber().value, J.fiber().value))
+    print(f'{product}')
+    print()
+
     LS = Chart(
         name='LS', # log-size cylindrical coordinates, where s = log(R^2 + w^2)/4 and u = arg(R, w)
         coords_shape=(3,),
@@ -1453,16 +1467,20 @@ if __name__ == '__main__':
     P_y_R3          = p_y + x*p_z/2
     H_R3            = (P_x_R3**2 + P_y_R3**2)/2 - 1/(8*sp.pi*sp.sqrt((x**2 + y**2)**2 + 16*z**2))
     J_R3            = x*p_x + y*p_y + 2*z*p_z
+    # Legendre transform (momentum to velocity) is the Hessian of H with respect to momenta.
+    L_R3            = vorpy.symbolic.D(H_R3, p_R3.value, p_R3.value)
 
     # TODO: Make ScalarFunction (i.e. Chart -> Real) and PathFunction (i.e. Real -> Chart)
 
     print(f'H_R3 = {H_R3}')
     print(f'J_R3 = {J_R3}')
+    print(f'L_R3 = {L_R3}')
     print()
 
     J_R3_to_QC = jacobian(R3_to_QC)
 
     qp_QC = T_star_QC.symbolic_coords
+    p_QC = qp_QC.fiber()
     # TODO: This should really be handled by the induced change of coords on cotangent bundle as
     # a vector bundle isomorphism.
     q_R3_from_QC = QC_to_R3(qp_QC.base())
@@ -1470,11 +1488,14 @@ if __name__ == '__main__':
     qp_R3_from_QC = T_star_R3.make_coords_composed(q_R3_from_QC, p_R3_from_QC)
 
     print(f'qp_QC:\n{qp_QC}')
+    print(f'p_QC:\n{p_QC}')
     print(f'qp_R3_from_QC:\n{qp_R3_from_QC}')
     print()
 
     H_QC = substitution(H_R3, qp_R3.value, qp_R3_from_QC.value)
     J_QC = substitution(J_R3, qp_R3.value, qp_R3_from_QC.value)
+    # Legendre transform is the Hessian of H with respect to momenta.
+    L_QC = vorpy.symbolic.D(H_QC, p_QC.value, p_QC.value)
 
     R, theta, w = qp_QC.base().value
     p_R, p_theta, p_w = qp_QC.fiber().value
@@ -1486,15 +1507,17 @@ if __name__ == '__main__':
     print()
     print(f'H_QC = {H_QC}')
     print(f'J_QC = {J_QC}')
+    print(f'L_QC = {L_QC}')
     print()
 
-    X_H_QC = simplified(vorpy.symplectic.symplectic_gradient_of(H_QC[tuple()], qp_QC.value))
+    X_H_QC = simplified(vorpy.symplectic.symplectic_gradient_of(H_QC, qp_QC.value))
     print(f'X_H_QC:\n{X_H_QC}')
     print()
 
     J_QC_to_LS = jacobian(QC_to_LS)
 
     qp_LS = T_star_LS.symbolic_coords
+    p_LS = qp_LS.fiber()
     q_QC_from_LS = LS_to_QC(qp_LS.base())
     p_QC_from_LS = T_star_QC.fiber_chart.make_coords(np.dot(qp_LS.fiber().value, J_QC_to_LS(q_QC_from_LS).fiber().value))
     qp_QC_from_LS = T_star_QC.make_coords_composed(q_QC_from_LS, p_QC_from_LS)
@@ -1507,18 +1530,57 @@ if __name__ == '__main__':
     P_theta_LS = substitution(P_theta_QC, qp_QC.value, qp_QC_from_LS.value)
     H_LS = substitution(H_QC, qp_QC.value, qp_QC_from_LS.value)
     J_LS = substitution(J_QC, qp_QC.value, qp_QC_from_LS.value)
+    # Legendre transform is the Hessian of H with respect to momenta.
+    L_LS = vorpy.symbolic.D(H_LS, p_LS.value, p_LS.value)
+
+    s, theta, u = qp_LS.value[0]
+    L_LS_formula = sp.exp(-2*s) * np.array([
+        [sp.cos(u), sp.sin(u), 0],
+        [sp.sin(u), sp.sec(u), 2*sp.cos(u)],
+        [0, 2*sp.cos(u), 4*sp.cos(u)],
+    ])
+    L_LS_formula_error = simplified(L_LS_formula - L_LS)
+    assert np.all(L_LS_formula_error == 0), f'L_LS_formula_error was not identically zero; L_LS_formula_error = {L_LS_formula_error}'
 
     print(f'P_R_LS = {P_R_LS}')
     print(f'P_theta_LS = {P_theta_LS}')
     print()
     print(f'H_LS = {H_LS}')
     print(f'J_LS = {J_LS}')
+    print(f'L_LS =\n{L_LS}')
+    print()
+    print(f'exp(2*s)*cos(u)*L_LS =\n{sp.exp(2*qp_LS.value[0,0])*sp.cos(qp_LS.value[0,2])*L_LS}')
+    print()
+    print(f'L_LS_formula =\n{L_LS_formula}')
     print()
 
+    K_LS = vorpy.tensor.contract('i,ij,j', p_LS.value, L_LS_formula, p_LS.value, dtype=object)/2
+    U_LS = -sp.exp(-2*s)/(8*sp.pi)
+
+    H_LS_formula = K_LS + U_LS
+    H_LS_formula_error = simplified(H_LS - H_LS_formula)
+    assert H_LS_formula_error == 0, f'H_LS_formula_error was not identically zero; H_LS_formula_error = {H_LS_formula_error}'
+
     print(f'type(H_LS) = {type(H_LS)}')
-    print(f'type(H_LS[tuple()]) = {type(H_LS[tuple()])}')
-    X_H_LS = simplified(vorpy.symplectic.symplectic_gradient_of(H_LS[tuple()], qp_LS.value))
+    print(f'type(H_LS) = {type(H_LS)}')
+    X_H_LS = simplified(vorpy.symplectic.symplectic_gradient_of(H_LS, qp_LS.value))
     print(f'X_H_LS:\n{X_H_LS}')
+    print()
+
+    # Solve for p_u in terms of the other variables in H = 0 and substitute that into X_H
+    p_u = qp_LS.value[1,2]
+    p_u_constrained_by_H_v = sp.solve(H_LS, p_u)
+    assert len(p_u_constrained_by_H_v) == 2
+    p_u_constrained_by_H_v = np.array(p_u_constrained_by_H_v)
+    print(f'p_u_constrained_by_H_v = {p_u_constrained_by_H_v}')
+    print()
+
+    dpu_dt = X_H_LS[1,2]
+    print(f'd/dt(p_u) = {dpu_dt}')
+    print()
+
+    dpu_dt_subs_v = np.array([substitution(dpu_dt, np.array(p_u), np.array(p_u_constrained_by_H)) for p_u_constrained_by_H in p_u_constrained_by_H_v])
+    print(f'dpu_dt_subs_v = {dpu_dt_subs_v}')
     print()
 
     # Induced change of cotangent bundle coordinates.
@@ -1531,3 +1593,17 @@ if __name__ == '__main__':
     print(T_star_R3_to_QC(T_star_R3_to_QC.domain.make_coords_composed(QC_to_R3(qp_QC.base()), qp_QC.fiber())))
     print()
 
+    if True:
+        X_H_LS__fast = vorpy.symbolic.lambdified(
+            X_H_LS,
+            qp_LS.value,
+            replacement_d={
+                'array':'np.array',
+                'cos':'np.cos',
+                'sin':'np.sin',
+                'exp':'np.exp',
+                'pi':'np.pi',
+                'dtype=object':'dtype=float',
+            },
+            verbose=True,
+        )
