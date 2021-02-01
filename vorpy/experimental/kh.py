@@ -512,6 +512,32 @@ class LogSizeSymbolics(KeplerHeisenbergSymbolics):
             ])
         elif other_coordinates is LogSizeSymbolics:
             return qp
+        elif other_coordinates is EuclideanSymbolics:
+            s       = qp[0,0]
+            theta   = qp[0,1]
+            u       = qp[0,2]
+            p_s     = qp[1,0]
+            p_theta = qp[1,1]
+            p_u     = qp[1,2]
+
+            R       = sp.exp(2*s)*sp.cos(u)
+            w       = sp.exp(2*s)*sp.sin(u)
+            p_R     = sp.exp(-2*s)*(sp.cos(u)*p_s/2 - sp.sin(u)*p_u)
+            p_w     = sp.exp(-2*s)*(sp.sin(u)*p_s/2 + sp.cos(u)*p_u)
+
+            r       = sp.sqrt(R)
+
+            x       = r*sp.cos(theta)
+            y       = r*sp.sin(theta)
+            z       = w/4
+            p_x     = 2*r*p_R*sp.cos(theta) - p_theta*sp.sin(theta)/r
+            p_y     = 2*r*p_R*sp.sin(theta) + p_theta*sp.cos(theta)/r
+            p_z     = 4*w
+
+            return np.array([
+                [x,   y,   z],
+                [p_x, p_y, p_z],
+            ])
         else:
             raise TypeError(f'coordinate change from {cls} to {other_coordinates} not implemented')
 
@@ -603,7 +629,7 @@ class KeplerHeisenbergNumerics:
 
     @classmethod
     @abc.abstractmethod
-    def generate_compute_trajectory_args (cls): # TODO: generator return type
+    def generate_compute_trajectory_args (cls, base_dir_p:pathlib.Path): # TODO: generator return type
         pass
 
     @classmethod
@@ -662,9 +688,9 @@ class KeplerHeisenbergNumerics:
             raise
 
     @classmethod
-    def compute_stuff (cls) -> None:
+    def compute_stuff (cls, base_dir_p:pathlib.Path) -> None:
         with concurrent.futures.ProcessPoolExecutor() as executor:
-            args_v = list(cls.generate_compute_trajectory_args()) # type: ignore
+            args_v = list(cls.generate_compute_trajectory_args(base_dir_p)) # type: ignore
             for args_index,result in enumerate(executor.map(cls.compute_trajectory__worker, args_v)): # type: ignore
                 print(f'{100*(args_index+1)//len(args_v): 3}% complete')
 
@@ -782,7 +808,7 @@ class EuclideanNumerics(KeplerHeisenbergNumerics):
         return EuclideanSymbolics.qp_constrained_by_H__symbolic(X), X
 
     @classmethod
-    def generate_compute_trajectory_args (cls):
+    def generate_compute_trajectory_args (cls, base_dir_p:pathlib.Path):
         t_final = 60.0
 
         x_initial_v = [1.0]
@@ -805,7 +831,7 @@ class EuclideanNumerics(KeplerHeisenbergNumerics):
             for solution_sheet,p_z_constrained_by_H in enumerate(p_z_constrained_by_H_v):
                 qp_initial = np.array([[X[0], X[1], X[2]], [X[3], X[4], p_z_constrained_by_H]])
                 J_initial = EuclideanNumerics.J__fast(qp_initial)
-                pickle_filename_p = pathlib.Path(f'kh_dilation_data.01/{cls.name()}/H={H_initial}_J={J_initial}_sheet={solution_sheet}/trajectory-{trajectory_index:06}.pickle')
+                pickle_filename_p = base_dir_p / cls.name() / f'H={H_initial}_J={J_initial}_sheet={solution_sheet}/trajectory-{trajectory_index:06}.pickle'
                 yield pickle_filename_p, qp_initial, t_final, solution_sheet
 
                 trajectory_index += 1
@@ -952,7 +978,7 @@ class QuadraticCylindricalNumerics(KeplerHeisenbergNumerics):
         return QuadraticCylindricalSymbolics.qp_constrained_by_H__symbolic(X), X
 
     @classmethod
-    def generate_compute_trajectory_args (cls):
+    def generate_compute_trajectory_args (cls, base_dir_p:pathlib.Path):
         t_final = 60.0
 
         R_initial_v = [1.0]
@@ -964,7 +990,8 @@ class QuadraticCylindricalNumerics(KeplerHeisenbergNumerics):
 
         p_theta_initial_v = np.linspace(0.05, 0.4, 31)
 
-        H_initial_v = np.linspace(-1.0/32, 1.0/32, 11)
+        #H_initial_v = np.linspace(-1.0/32, 1.0/32, 11)
+        H_initial_v = [0.0]
         assert 0.0 in H_initial_v
 
         trajectory_index = 0
@@ -976,7 +1003,7 @@ class QuadraticCylindricalNumerics(KeplerHeisenbergNumerics):
             for solution_sheet,p_w_constrained_by_H in enumerate(p_w_constrained_by_H_v):
                 qp_initial = np.array([[X[0], X[1], X[2]], [X[3], X[4], p_w_constrained_by_H]])
                 J_initial = QuadraticCylindricalNumerics.J__fast(qp_initial)
-                pickle_filename_p = pathlib.Path(f'kh_dilation_data.01/{cls.name()}/H={H_initial}_J={J_initial}_sheet={solution_sheet}/trajectory-{trajectory_index:06}.pickle')
+                pickle_filename_p = base_dir_p / cls.name() / f'H={H_initial}_J={J_initial}_sheet={solution_sheet}/trajectory-{trajectory_index:06}.pickle'
                 yield pickle_filename_p, qp_initial, t_final, solution_sheet
 
                 trajectory_index += 1
@@ -1001,6 +1028,18 @@ class LogSizeNumerics(KeplerHeisenbergNumerics):
     def qp_to_QuadraticCylindrical__fast () -> np.ndarray:
         qp = LogSizeSymbolics.qp_coordinates()
         return LogSizeSymbolics.change_qp_coordinates_to(QuadraticCylindricalSymbolics, qp), qp
+
+    @staticmethod
+    @vorpy.symbolic.cache_lambdify(
+        function_id='LogSize__qp_to_Euclidean',
+        argument_id='qp',
+        replacement_d={'dtype=object':'dtype=float', 'cos':'np.cos', 'sin':'np.sin', 'exp':'np.exp', 'pi':'np.pi', 'sqrt':'np.sqrt', 'ndarray':'np.ndarray'},
+        import_v=['import numpy as np'],
+        verbose=True,
+    )
+    def qp_to_Euclidean__fast () -> np.ndarray:
+        qp = LogSizeSymbolics.qp_coordinates()
+        return LogSizeSymbolics.change_qp_coordinates_to(EuclideanSymbolics, qp), qp
 
     @staticmethod
     @vorpy.symbolic.cache_lambdify(
@@ -1123,7 +1162,7 @@ class LogSizeNumerics(KeplerHeisenbergNumerics):
         return LogSizeSymbolics.p_s_bounds__symbolic(X), X
 
     @classmethod
-    def generate_compute_trajectory_args (cls):
+    def generate_compute_trajectory_args (cls, base_dir_p:pathlib.Path):
         t_final = 60.0
 
         s_initial_v = [0.0]
@@ -1147,7 +1186,7 @@ class LogSizeNumerics(KeplerHeisenbergNumerics):
 
             for solution_sheet,p_u_constrained_by_H in enumerate(p_u_constrained_by_H_v):
                 qp_initial = np.array([[X[0], X[1], X[2]], [X[3], X[4], p_u_constrained_by_H]])
-                pickle_filename_p = pathlib.Path(f'kh_dilation_data.ls.00/{cls.name()}/H={H_initial}_p_s={p_s_initial}_p_theta={p_theta_initial}_sheet={solution_sheet}/trajectory-{trajectory_index:06}.pickle')
+                pickle_filename_p = base_dir_p / cls.name() / f'H={H_initial}_p_s={p_s_initial}_p_theta={p_theta_initial}_sheet={solution_sheet}/trajectory-{trajectory_index:06}.pickle'
                 yield pickle_filename_p, qp_initial, t_final, solution_sheet
 
                 trajectory_index += 1

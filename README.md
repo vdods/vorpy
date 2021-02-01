@@ -71,6 +71,8 @@ The suite of unit tests can be run via the command:
 
 # To-Do List
 
+-   Maybe use boost's python numpy stuff to write C++ using numpy constructs (ndarray) -- https://jitcode.readthedocs.io/en/v1.4.0/
+-   Look into using JiTCODE to make fast numerics -- https://jitcode.readthedocs.io/en/v1.4.0/
 -   Use L^inf norm for local truncation error estimate, instead of L^2 norm.  This should be faster to compute.
 -   Need to add a shape check in `vorpy.symbolic.lambdified` to verify that the argument has the expected shape.  Ran into
     a hard-to-find bug that was the result of passing in the wrong shape and it happily not complaining.

@@ -57,7 +57,8 @@ class RealInterval:
 
     def membership (self, x:float) -> 'RealInterval.Membership':
         if not np.isfinite(x):
-            raise ValueError(f'x (which is {x}) was expected to be finite')
+            #raise ValueError(f'x (which is {x}) was expected to be finite')
+            return RealInterval.Membership.BELOW # TEMP HACK
 
         if x < self.inf:
             return RealInterval.Membership.BELOW
@@ -91,7 +92,7 @@ class GlobalErrorSchedule:
         proportion = t_step / t_duration
         # Take the global error band supremum down by a bit, so that if it overshoots a little, it doesn't
         # fail the global error bound condition.
-        padding_ratio = 0.1 # Somewhat arbitrary.
+        padding_ratio = 0.9 # Somewhat arbitrary.
         padded_global_error_band_sup = self.__global_error_band.sup * (1.0-padding_ratio)
         return RealInterval(self.__global_error_band.inf*proportion, padded_global_error_band_sup*proportion)
 

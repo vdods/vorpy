@@ -314,10 +314,10 @@ def compute_trajectory (p_x_initial:float, p_y_initial:float, base_dir_p:pathlib
         solution_sheet=0,
     )
 
-def plot_trajectories (results_v:typing.Sequence[vorpy.integration.adaptive.IntegrateVectorFieldResults], base_dir_p:pathlib.Path) -> None:
+def plot_trajectories (results_v:typing.Sequence[vorpy.integration.adaptive.IntegrateVectorFieldResults], base_dir_p:pathlib.Path, *, result_index=None) -> None:
     row_count   = 2
-    col_count   = 3
-    size        = 6
+    col_count   = 6
+    size        = 8
     fig,axis_vv = plt.subplots(row_count, col_count, squeeze=False, figsize=(size*col_count,size*row_count))
 
     def compute_collision_time (*, results:vorpy.integration.adaptive.IntegrateVectorFieldResults) -> float:
@@ -364,17 +364,22 @@ def plot_trajectories (results_v:typing.Sequence[vorpy.integration.adaptive.Inte
 
             precollision_mask_v = t_v < collision_time
             precollision_t_v = t_v[precollision_mask_v]
-            size_v = -J_initial * (collision_time - precollision_t_v)
-            print(f'size_v[0] = {size_v[0]}')
+            if len(precollision_t_v) > 0:
+                size_v = -J_initial * (collision_time - precollision_t_v)
+                print(f'size_v[0] = {size_v[0]}')
 
-            normalized_size_v = (collision_time - precollision_t_v) / (collision_time - precollision_t_v[0])
+                normalized_size_v = (collision_time - precollision_t_v) / (collision_time - precollision_t_v[0])
 
-            axis = axis_vv[1][2]
-            axis.set_title(f'"size"')
-            axis.axhline(0.0, color='black')
-            axis.plot(precollision_t_v, size_v)
-            #axis.plot(precollision_t_v, normalized_size_v)
-            axis.axvline(collision_time)
+                axis = axis_vv[1][3]
+                axis.set_title('"size"')
+                axis.axhline(0.0, color='black')
+                axis.plot(precollision_t_v, size_v)
+                #axis.plot(precollision_t_v, normalized_size_v)
+                axis.axvline(collision_time)
+            else:
+                axis = axis_vv[1][3]
+                axis.set_title('"size" could not be computed')
+                normalized_size_v = None
 
         def dilation (lam:float, qp:np.ndarray) -> np.ndarray:
             assert qp.shape == (2,3)
@@ -385,7 +390,7 @@ def plot_trajectories (results_v:typing.Sequence[vorpy.integration.adaptive.Inte
             retval[1,2]   /= lam**2
             return retval
 
-        if np.isfinite(collision_time):
+        if np.isfinite(collision_time) and normalized_size_v is not None:
             # Apply a progressive dilation (using sqrt(lam) because lam is based on z)
             precollision_qp_v = qp_v[precollision_mask_v,...]
             dilated_precollision_qp_v = np.copy(precollision_qp_v)
@@ -406,21 +411,34 @@ def plot_trajectories (results_v:typing.Sequence[vorpy.integration.adaptive.Inte
                 axis.plot(qp_v[:,phase_index,0], qp_v[:,phase_index,1])
             axis.plot([0.0], [0.0], '.', color='black')
 
-            axis = axis_vv[phase_index][1]
-            axis.set_title(f'initial {s}z = {qp_v[0,phase_index,2]}\n(t, {s}z(t))')
-            if dilated_precollision_qp_v is not None:
-                axis.plot(t_v, dilated_precollision_qp_v[:,phase_index,2])
-            else:
-                axis.plot(t_v, qp_v[:,phase_index,2])
-            axis.plot([0.0], [0.0], '.', color='black')
+            for coord_index,coord_name in enumerate(['x','y','z']):
+                axis = axis_vv[phase_index][1+coord_index]
+                axis.set_title(f'initial {s}{coord_name} = {qp_v[0,phase_index,coord_index]}\n(t, {s}{coord_name}(t))')
+                if dilated_precollision_qp_v is not None:
+                    axis.plot(t_v, dilated_precollision_qp_v[:,phase_index,coord_index])
+                else:
+                    axis.plot(t_v, qp_v[:,phase_index,coord_index])
 
         p_theta_v   = vorpy.apply_along_axes(vorpy.experimental.kh.EuclideanNumerics.p_theta__fast, (1,2), (results.y_t,))
+        H_v         = vorpy.apply_along_axes(vorpy.experimental.kh.EuclideanNumerics.H__fast, (1,2), (results.y_t,))
+        J_v         = vorpy.apply_along_axes(vorpy.experimental.kh.EuclideanNumerics.J__fast, (1,2), (results.y_t,))
 
-        axis = axis_vv[0][2]
+        axis = axis_vv[0][4]
         axis.set_title(f'p_theta = {p_theta_v[0]}')
         axis.plot(t_v, p_theta_v)
 
-    plot_p = base_dir_p / f'qp.p_y={p_y_initial}.png'
+        axis = axis_vv[1][4]
+        axis.set_title(f'H = {H_v[0]}')
+        axis.plot(t_v, H_v)
+
+        axis = axis_vv[1][5]
+        axis.set_title(f'J = {J_v[0]}')
+        axis.plot(t_v, J_v)
+
+    if len(results_v) == 1:
+        plot_p = base_dir_p / f'qp.result_index={result_index}.x={results.y_t[0,0,0]}.y={results.y_t[0,0,1]}.z={results.y_t[0,0,2]}.p_x={results.y_t[0,1,0]}.p_y={results.y_t[0,1,1]}.p_z={results.y_t[0,1,2]}.png'
+    else:
+        plot_p = base_dir_p / f'results.png'
 
     fig.tight_layout()
     plot_p.parent.mkdir(parents=True, exist_ok=True)
@@ -761,6 +779,37 @@ def plot_related_trajectories (*, x_initial:float, p_x_initial_v:typing.List[flo
 
     plot_trajectories(results_v=results_v, base_dir_p=plot_dir_p)
 
+def plot_z_axis_trajectories (*, z_initial_v:typing.List[float], p_z_initial_v:typing.List[float], plot_dir_p:pathlib.Path):
+    solution_sheet = 0
+
+    x_initial = 0.0
+    y_initial = 0.0
+    p_y_initial = 0.0
+
+    plot_dir_p.mkdir(parents=True, exist_ok=True)
+    t_final = 2000.0
+    results_v = []
+    for z_initial in z_initial_v:
+        p_x_initial = 0.25 / np.sqrt(np.pi*z_initial)
+        for p_z_initial in p_z_initial_v:
+            qp_initial = np.array([
+                [x_initial,   y_initial,   z_initial],
+                [p_x_initial, p_y_initial, p_z_initial]
+            ])
+
+            results = vorpy.experimental.kh.EuclideanNumerics.compute_trajectory(
+                #plot_dir_p / f'p_theta={p_theta_initial}.J={J_initial}.pickle',
+                plot_dir_p / f'z={z_initial}.p_z={p_z_initial}.pickle',
+                qp_initial,
+                t_final=t_final,
+                solution_sheet=solution_sheet, # This isn't used in the computation, it's just stored in the pickle file
+                return_y_jet=False,
+            )
+            plot_trajectories(results_v=[results], base_dir_p=plot_dir_p, result_index=len(results_v))
+            results_v.append(results)
+
+    plot_trajectories(results_v=results_v, base_dir_p=plot_dir_p)
+
 if __name__ == '__main__':
     import sys
 
@@ -804,16 +853,22 @@ if __name__ == '__main__':
 
 
 
-    print(f'X_H:\n{vorpy.experimental.kh.QuadraticCylindricalSymbolics.X_H__symbolic(vorpy.experimental.kh.QuadraticCylindricalSymbolics.qp_coordinates()).reshape(6,1)}')
-    sys.exit(0)
+    #print(f'X_H:\n{vorpy.experimental.kh.QuadraticCylindricalSymbolics.X_H__symbolic(vorpy.experimental.kh.QuadraticCylindricalSymbolics.qp_coordinates()).reshape(6,1)}')
+    #sys.exit(0)
 
-    p_x_bound     = 0.0625
-    #p_x_bound     = 0.25
-    p_x_count     = 9
-    p_x_initial_v = np.linspace(-p_x_bound, 0.0, p_x_count).tolist()
-    plot_related_trajectories(
-        x_initial=2.0,
-        p_x_initial_v=p_x_initial_v,
-        p_y_initial=0.2,
-        plot_dir_p=pathlib.Path('related.01'),
-    )
+    #p_x_bound     = 0.0625
+    ##p_x_bound     = 0.25
+    #p_x_count     = 9
+    #p_x_initial_v = np.linspace(-p_x_bound, 0.0, p_x_count).tolist()
+    #plot_related_trajectories(
+        #x_initial=2.0,
+        #p_x_initial_v=p_x_initial_v,
+        #p_y_initial=0.2,
+        #plot_dir_p=pathlib.Path('related.01'),
+    #)
+
+    z_initial_v = [1.0]
+    #p_z_initial_v = [0.0]+[0.5**p for p in np.linspace(0.0, 5.0, num=33)]
+    #p_z_initial_v = np.linspace(0.127, 0.158, num=16)
+    p_z_initial_v = np.linspace(0.0, 1.0, num=33)
+    plot_z_axis_trajectories(z_initial_v=z_initial_v, p_z_initial_v=p_z_initial_v, plot_dir_p=pathlib.Path('kh_dilation.z-axis.10'))

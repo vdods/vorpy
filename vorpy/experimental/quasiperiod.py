@@ -102,7 +102,7 @@ def compute_lambda_v (x_v:np.ndarray, *, name_o:typing.Optional[str]=None) -> np
     print(f'{prefix}lambda_v range size = {lambda_range_size}')
     return lambda_v, lambda_range, lambda_range_size
 
-def do_stuff (*, pickle_p:pathlib.Path, plot_p:pathlib.Path) -> None:
+def do_stuff (*, pickle_p:pathlib.Path, plot_p:pathlib.Path, plot_momentum=False) -> None:
     data_d = vorpy.pickle.unpickle(pickle_filename=pickle_p, log_out=sys.stdout)
 
     results = data_d['results']
@@ -226,9 +226,10 @@ def do_stuff (*, pickle_p:pathlib.Path, plot_p:pathlib.Path) -> None:
         extrapolated_y_t        = None
         extrapolation_error     = None
 
-    row_count   = 1
+    row_count   = 2 if plot_momentum else 1
     col_count   = 2
-    size        = 8
+    #size        = 8
+    size        = 5
     fig,axis_vv = plt.subplots(row_count, col_count, squeeze=False, figsize=(size*col_count,size*row_count))
 
     qp_t = np.ndarray((len(t_v),2,3), dtype=float)
@@ -280,7 +281,7 @@ def do_stuff (*, pickle_p:pathlib.Path, plot_p:pathlib.Path) -> None:
         extrapolated_qp_t = None
 
     axis = axis_vv[0][0]
-    axis.set_title(f'Plot of (x(t),y(t))\nInitial conditions (x,y,z,p_x,p_y,p_z):\n{tuple(qp_t[0,:,:].reshape(-1).tolist())}\nPurple segment: source fundamental domain\nOrange segment: extrapolated fundamental domain')
+    #axis.set_title(f'Plot of (x(t),y(t))\nInitial conditions (x,y,z,p_x,p_y,p_z):\n{tuple(qp_t[0,:,:].reshape(-1).tolist())}\nPurple segment: source fundamental domain\nOrange segment: extrapolated fundamental domain')
     axis.set_aspect(1.0)
     axis.plot([0], [0], '.', color='black')
     axis.plot(qp_t[:,0,0], qp_t[:,0,1])
@@ -288,14 +289,40 @@ def do_stuff (*, pickle_p:pathlib.Path, plot_p:pathlib.Path) -> None:
         axis.plot(qp_t[source_t_mask_v,0,0], qp_t[source_t_mask_v,0,1], color='purple')
         axis.plot(extrapolated_qp_t[:,0,0], extrapolated_qp_t[:,0,1], color='orange')
 
-    #axis = axis_vv[1][0]
+    # Make the plot square
+    axis_xlim_old = axis.get_xlim()
+    axis_ylim_old = axis.get_ylim()
+    axis_x_size = abs(axis_xlim_old[1] - axis_xlim_old[0])
+    axis_y_size = abs(axis_ylim_old[1] - axis_ylim_old[0])
+    axis_size = max(axis_x_size, axis_y_size)
+    if axis_x_size < axis_size:
+        difference = axis_size - axis_x_size
+        axis.set_xlim(axis_xlim_old[0]-difference/2.0, axis_xlim_old[1]+difference/2.0)
+    if axis_y_size < axis_size:
+        difference = axis_size - axis_y_size
+        axis.set_ylim(axis_ylim_old[0]-difference/2.0, axis_ylim_old[1]+difference/2.0)
+
+    axis = axis_vv[1][0]
     #axis.set_title(f'(p_x(t),p_y(t))\npurple: source fund. domain\norange: extrap\'ed fund. domain')
-    #axis.set_aspect(1.0)
-    #axis.plot([0], [0], '.', color='black')
-    #axis.plot(qp_t[:,1,0], qp_t[:,1,1])
-    #if extrapolated_qp_t is not None:
-        #axis.plot(qp_t[source_t_mask_v,1,0], qp_t[source_t_mask_v,1,1], color='purple')
-        #axis.plot(extrapolated_qp_t[:,1,0], extrapolated_qp_t[:,1,1], color='orange')
+    axis.set_aspect(1.0)
+    axis.plot([0], [0], '.', color='black')
+    axis.plot(qp_t[:,1,0], qp_t[:,1,1])
+    if extrapolated_qp_t is not None:
+        axis.plot(qp_t[source_t_mask_v,1,0], qp_t[source_t_mask_v,1,1], color='purple')
+        axis.plot(extrapolated_qp_t[:,1,0], extrapolated_qp_t[:,1,1], color='orange')
+
+    # Make the plot square
+    axis_xlim_old = axis.get_xlim()
+    axis_ylim_old = axis.get_ylim()
+    axis_x_size = abs(axis_xlim_old[1] - axis_xlim_old[0])
+    axis_y_size = abs(axis_ylim_old[1] - axis_ylim_old[0])
+    axis_size = max(axis_x_size, axis_y_size)
+    if axis_x_size < axis_size:
+        difference = axis_size - axis_x_size
+        axis.set_xlim(axis_xlim_old[0]-difference/2.0, axis_xlim_old[1]+difference/2.0)
+    if axis_y_size < axis_size:
+        difference = axis_size - axis_y_size
+        axis.set_ylim(axis_ylim_old[0]-difference/2.0, axis_ylim_old[1]+difference/2.0)
 
     #axis = axis_vv[0][1]
     #axis.set_title(f'(t,R(t))\npurple: source fund. domain\norange: extrap\'ed fund. domain')
@@ -346,7 +373,7 @@ def do_stuff (*, pickle_p:pathlib.Path, plot_p:pathlib.Path) -> None:
     #axis = axis_vv[0][3]
     axis = axis_vv[0][1]
     #axis.set_title(f'(t,w(t))\nw_lambda range = {w_lambda_range}\nw_lambda range size = {w_lambda_range_size}')
-    axis.set_title(f'Plot of (t,z(t))\nH = {H_initial}, J = {J_initial}\nlambda = {lam}')
+    #axis.set_title(f'Plot of (t,z(t))\nH = {H_initial}, J = {J_initial}\nlambda = {lam}')
     axis.axhline(0, color='black')
     #axis.plot(t_v, w_v)
     axis.plot(t_v, w_v/4) # w = 4*z
@@ -355,6 +382,26 @@ def do_stuff (*, pickle_p:pathlib.Path, plot_p:pathlib.Path) -> None:
         axis.plot(t_v[source_t_mask_v], w_v[source_t_mask_v]/4, color='purple')
         #axis.plot(extrapolated_t_v, extrapolated_y_t[:,0,2], color='orange')
         axis.plot(extrapolated_t_v, extrapolated_y_t[:,0,2]/4, color='orange')
+        axis.axvline(quasiperiod_t_range[0], color='black', alpha=0.5)
+        axis.axvline(quasiperiod_t_range[1], color='black', alpha=0.5)
+    #for w_zero_crossing in w_zero_crossing_v:
+        #axis.axvline(w_zero_crossing, color='black', alpha=0.3)
+    for w_zero_crossing_pos in w_zero_crossing_pos_v:
+        axis.axvline(w_zero_crossing_pos, color='green', alpha=0.3)
+    for w_zero_crossing_neg in w_zero_crossing_neg_v:
+        axis.axvline(w_zero_crossing_neg, color='red', alpha=0.3)
+
+    axis = axis_vv[1][1]
+    #axis.set_title(f'(t,p_w(t))\nw_lambda range = {w_lambda_range}\nw_lambda range size = {w_lambda_range_size}')
+    #axis.set_title(f'Plot of (t,p_z(t))\nH = {H_initial}, J = {J_initial}\nlambda = {lam}')
+    axis.axhline(0, color='black')
+    #axis.plot(t_v, w_v)
+    axis.plot(t_v, p_w_v*4) # w = 4*z, so p_w = z/4
+    if extrapolated_y_t is not None:
+        #axis.plot(t_v[source_t_mask_v], w_v[source_t_mask_v], color='purple')
+        axis.plot(t_v[source_t_mask_v], p_w_v[source_t_mask_v]*4, color='purple')
+        #axis.plot(extrapolated_t_v, extrapolated_y_t[:,0,2], color='orange')
+        axis.plot(extrapolated_t_v, extrapolated_y_t[:,1,2]*4, color='orange')
         axis.axvline(quasiperiod_t_range[0], color='black', alpha=0.5)
         axis.axvline(quasiperiod_t_range[1], color='black', alpha=0.5)
     #for w_zero_crossing in w_zero_crossing_v:
