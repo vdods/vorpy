@@ -98,20 +98,20 @@ def differential (F, X):
     if m == 0:
         # Univariate derivative
         if n == 0:
-            return F.diff(X)
+            return sympy.diff(F, X)
         # Multivariate derivative
         else:
-            return np.array([F.diff(X[I]) for I in multiindex_iterator(np.shape(X))]).reshape(np.shape(X))
+            return np.array([sympy.diff(F, X[I]) for I in multiindex_iterator(np.shape(X))]).reshape(np.shape(X))
 
     # Multivariate function
     else:
         # Univariate derivative
         if n == 0:
-            return np.array([F[I].diff(X) for I in multiindex_iterator(np.shape(F))]).reshape(np.shape(F))
+            return np.array([sympy.diff(F[I], X) for I in multiindex_iterator(np.shape(F))]).reshape(np.shape(F))
         # Multivariate derivative
         else:
             retval_shape = tuple(list(np.shape(F))+list(np.shape(X)))
-            return np.array([F[I[:m]].diff(X[I[m:]]) for I in multiindex_iterator(retval_shape)]).reshape(retval_shape)
+            return np.array([sympy.diff(F[I[:m]], X[I[m:]]) for I in multiindex_iterator(retval_shape)]).reshape(retval_shape)
 
 def D (F, *X_v):
     """
