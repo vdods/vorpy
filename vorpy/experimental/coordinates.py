@@ -343,6 +343,16 @@ class VectorBundleChart(BundleChart):
 
         BundleChart.__init__(self, name=name, base_chart=base_chart, fiber_chart=fiber_chart, coords_class=coords_class)
 
+    def order (self) -> int:
+        """The tensor order of a vector bundle is 1 except when overridden in a base class."""
+        return 1
+
+    def factor (self, index:int) -> 'VectorBundleChart':
+        """Returns the `index`th tensor factor.  There is only 1 factor, and that factor is this vector bundle itself."""
+        if index != 0:
+            raise ValueError(f'VectorBundleChart only has 1 tensor factor')
+        return self
+
     # Type-specific overload
     def make_coords (self, value:np.ndarray) -> VectorBundleCoords:
         retval = BundleChart.make_coords(self, value)
@@ -522,7 +532,12 @@ class TensorBundleChart(VectorBundleChart):
 
             self.vector_bundle_chart__v = vector_bundle_chart__v
 
+    def order (self) -> int:
+        """Returns the order of the tensor bundle (i.e. how many tensor factors there are)."""
+        return len(self.vector_bundle_chart__v)
+
     def factor (self, index:int) -> VectorBundleChart:
+        """Returns the `index`th tensor factor."""
         return self.vector_bundle_chart__v[index]
 
     # Type-specific overload
@@ -1156,6 +1171,8 @@ class VectorBundleIsomorphism(VectorBundleMorphism, BundleIsomorphism):
             base_isomorphism__o=base_isomorphism__o,
         )
 
+# TODO: Use mypy's overloading capabilities to combine TangentFunctor_ob and TangentFunctor_mor and
+# TangentFunctor_iso into a single one called TangentFunctor or just T.
 def TangentFunctor_ob (base_chart:Chart, *, fiber_symbolic_coords__o:typing.Optional[np.ndarray]=None) -> TangentBundleChart:
     """This is the tangent functor's action on objects of the category (i.e. Chart)."""
     return TangentBundleChart.induced(base_chart, fiber_symbolic_coords__o=fiber_symbolic_coords__o)
