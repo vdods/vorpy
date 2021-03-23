@@ -54,6 +54,7 @@ The suite of unit tests can be run via the command:
 
 # Release Notes
 
+- `0.9.0` : Added `integrate_tangent_flow`, added stuff to `vorpy.tensor` and `vorpy.symplectic`, added code for Bernstein polynomials and Bezier curves, some experimental work on strongly typed manifolds concepts, and a bunch of other miscellaneous work and improvements.
 - `0.8.0` : Added the `vorpy.linalg` module.
 - `0.7.0` : Modification to the symbolic polynomial generating functions.
 - `0.6.0` : Added the `vorpy.manifold` and `vorpy.symplectic` modules, which implement some basic calculus in those categories.

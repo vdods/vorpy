@@ -64,6 +64,7 @@ The suite of unit tests can be run via the command:
 Release Notes
 =============
 
+-  ``0.9.0`` : Added ``integrate_tangent_flow``, added stuff to ``vorpy.tensor`` and ``vorpy.symplectic``, added code for Bernstein polynomials and Bezier curves, some experimental work on strongly typed manifolds concepts, and a bunch of other miscellaneous work and improvements.
 -  ``0.8.0`` : Added the ``vorpy.linalg`` module.
 -  ``0.7.0`` : Modification to the symbolic polynomial generating functions.
 -  ``0.6.0`` : Added the ``vorpy.manifold`` and ``vorpy.symplectic`` modules, which implement some basic calculus in those categories.
@@ -82,6 +83,15 @@ Release Notes
 To-Do List
 ==========
 
+-  Maybe use boost's python numpy stuff to write C++ using numpy constructs (ndarray) -- https://jitcode.readthedocs.io/en/v1.4.0/
+-  Look into using JiTCODE to make fast numerics -- https://jitcode.readthedocs.io/en/v1.4.0/
+-  Use L^inf norm for local truncation error estimate, instead of L^2 norm. This should be faster to compute.
+-  Need to add a shape check in ``vorpy.symbolic.lambdified`` to verify that the argument has the expected shape. Ran into a hard-to-find bug that was the result of passing in the wrong shape and it happily not complaining.
+-  Make a version of ``vorpy.tensor.contract`` which allows for general contractions, instead of fixed letter-based contractions.
+-  Reorganize module structure to reflect the category theory of the subjects (e.g. ``vorpy.man`` for the category of manifolds, ``vorpy.vec`` for the category of vector spaces, ``vorpy.man.sympl`` for the category of symplectic manifolds, ``vorpy.man.riem`` for the category of Riemannian manifolds, etc).
+-  Add parsing of 'ij,kl->iljk' style string (as in ``numpy.einsum``) to ``vorpy.tensor.contract``, which will just replace the ``output`` kwarg.
+-  Make sure ``tests`` doesn't get installed (it looks like it is). OR, put tests under vorpy module (this is probably better).
+-  Look into using pytorch for faster numerics.
 -  Consolidate vorpy.symbolic.multiindex\_iterator and vorpy.tensor.multiindex\_iterator (probably use the one in symbolic because it looks fancier, but it does belong within the vorpy.tensor module).
 -  Include tests in the dist package, so they can be tested at the install site.
 -  Make the ``symbolic`` module aware of vectorized operations so that fast ``numpy``-implemented ``ndarray`` functions can be used instead of structure-forgetting symbolic expressions that are fully written out. For example, the 1st and 2nd total derivatives of a quadratic form are simply matrix expressions which have simple ``numpy`` expressions.
