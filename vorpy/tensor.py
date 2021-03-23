@@ -156,7 +156,7 @@ def contract (contraction_string, *tensors, **kwargs):
     """
 
     if '->' in contraction_string:
-        raise VorpyTensorException('The -> syntax supported in numpy.einsum is not supported in vorpy.tensor.contract')
+        raise VorpyTensorException('The -> syntax supported in numpy.einsum is not supported in vorpy.tensor.contract; use the `output` kwarg instead')
 
     output_index_string = kwargs.get('output', None)
     if 'dtype' not in kwargs:
