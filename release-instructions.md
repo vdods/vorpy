@@ -48,9 +48,10 @@ wheel for a project that only supports Python 3, run the following command.
 This will create a `.whl` file in the `dist` subdir.
 
 Now upload the distribution files you created to [testpypi](https://testpypi.python.org/pypi/) using `twine`
-([why use twine instead of good ol' `setup.py`?](https://pypi.python.org/pypi/twine)):
+([why use twine instead of good ol' `setup.py`?](https://pypi.python.org/pypi/twine); also make sure to upgrade
+`twine` if necessary):
 
-    twine upload -r testpypi dist/*
+    python3.6 -m twine upload -r testpypi dist/*
 
 This will make your uploaded files available at
 
@@ -64,7 +65,7 @@ Now you can test installation of your package via `pip3`.
 
 Once you're satisfied with the result, you can upload your package to the "real" index.
 
-    twine upload dist/*
+    python3.6 -m twine upload dist/*
 
 This will make a project page with relevant info and links available at
 
